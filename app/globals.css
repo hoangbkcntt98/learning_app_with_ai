@@ -12,17 +12,61 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root.dark {
+  --background: #0b1220;
+  --foreground: #e6edf7;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Re-map common utility classes used across pages when dark mode is active. */
+:root.dark .bg-white {
+  background-color: #121a2a !important;
+}
+
+:root.dark .bg-black,
+:root.dark .bg-zinc-900 {
+  background-color: #dbe7ff !important;
+}
+
+:root.dark .bg-black\/5,
+:root.dark .bg-black\/\[0\.02\],
+:root.dark .bg-black\/\[0\.04\] {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+:root.dark .border-black\/10,
+:root.dark .border-black\/15,
+:root.dark .border-black\/20 {
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+:root.dark .text-black,
+:root.dark .text-black\/85,
+:root.dark .text-black\/70,
+:root.dark .text-black\/60,
+:root.dark .text-black\/55,
+:root.dark .text-black\/50 {
+  color: #e6edf7 !important;
+}
+
+:root.dark .text-white {
+  color: #0c1424 !important;
+}
+
+:root.dark .text-blue-700 {
+  color: #9bc1ff !important;
+}
+
+:root.dark input,
+:root.dark textarea,
+:root.dark select {
+  background-color: #162033;
+  color: #e6edf7;
 }
 
 .loading-popup-overlay {
@@ -46,4 +90,10 @@ body {
   background: #fff;
   padding: 16px 20px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+:root.dark .loading-popup-card {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #162033;
+  color: #e6edf7;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { LoadingPopup } from "../loading-popup";
 import { DEFAULT_LANGUAGE, LANGUAGE_OPTIONS, type SupportedLanguage } from "@/lib/language";
@@ -337,9 +338,19 @@ export function GameClient({
     : undefined;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl items-center px-6 py-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-8">
       {isLoadingQuestions ? <LoadingPopup message="Loading questions..." /> : null}
       {isSubmittingAnswer ? <LoadingPopup message="Checking your answer..." /> : null}
+
+      {/* Show app panda logo on this user route for consistent branding. */}
+      <Image
+        src="/images/logo.png"
+        alt="BuBu Learning panda logo"
+        width={112}
+        height={112}
+        className="mb-6 h-28 w-28 rounded-xl object-cover"
+        priority
+      />
 
       <div className="w-full rounded-2xl border border-black/10 p-8 shadow-sm">
         <div className="flex items-center justify-between gap-4">
