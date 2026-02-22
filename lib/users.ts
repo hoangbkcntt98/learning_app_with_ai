@@ -47,11 +47,12 @@ function mapUser(row: {
   email: string;
   passwordHash: string;
   name: string;
-  avatarUrl: string | null;
+  avatarUrl?: string | null;
   points: number;
   level: number;
   role: string;
   aiDailyQuota: number | null;
+  createdAt?: Date;
 }): UserRecord {
   // Map raw database user row into the typed app-level user record.
   const defaultAiDailyQuota = getDefaultAiDailyQuotaPerUser();
@@ -59,7 +60,7 @@ function mapUser(row: {
     email: row.email,
     passwordHash: row.passwordHash,
     name: row.name,
-    avatarUrl: row.avatarUrl,
+    avatarUrl: row.avatarUrl ?? null,
     points: row.points,
     level: row.level,
     role: row.role === "admin" ? "admin" : "user",
