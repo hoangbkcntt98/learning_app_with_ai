@@ -1,0 +1,26 @@
+[
+  {
+    "points": 0,
+    "email": "test@example.com",
+    "passwordHash": "8d26d6c2fbd9c38db8b1bd5ea4e4fcf1:fb4e6a4eaa8e59827a26cebd123e6ee05425206da62a6432b0dcda4d9cbd6f5b43d991aa2776806d3776e25769a0a566ae10bc98b4d24fc72d71d96f6b0b552d",
+    "name": "Test User",
+    "level": 0,
+    "role": "user"
+  },
+  {
+    "points": 15,
+    "email": "admin@example.com",
+    "passwordHash": "44ac0a564d352971ebfa1ea0dc9029c8:028b6a7f45518a2dc403eeb44d67b6cd014bc49960d48d3d3fe108987053061efd040ee362191dc4dcda1f3993b8ad3e4fa508ad7b0015b89017f306cc04752b",
+    "name": "Admin User",
+    "level": 1,
+    "role": "admin"
+  },
+  {
+    "points": 20,
+    "email": "nguyenvietthai.vnist@gmail.com",
+    "passwordHash": "db44bea848a9506979f727427303f70c:3aca85c5b626631bcf7f74ec71126b53f3909831e8d48654b986bf42747625e9b7fd6f750ec8cffec9812d779a8495b977a8378964177d743c41c02d89b4d9b3",
+    "name": "HoangDO",
+    "level": 1,
+    "role": "user"
+  }
+]
