@@ -30,6 +30,7 @@ Optional:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `NEXT_PUBLIC_APP_URL`
+- `GOOGLE_REDIRECT_URI` (recommended, exact callback URL)
 
 ## Google Login Setup
 
@@ -46,11 +47,17 @@ The app supports login via Google OAuth 2.0.
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
    - `NEXT_PUBLIC_APP_URL` (e.g. `http://localhost:3000` or your production URL)
+   - `GOOGLE_REDIRECT_URI` (must exactly match a Google authorized redirect URI)
 
 When user clicks **Continue with Google**, app redirects to:
 
 - `/api/auth/google/start` -> Google OAuth screen
 - `/api/auth/google/callback` -> app creates/signs in user and sets session cookie
+
+`GOOGLE_REDIRECT_URI` example:
+
+- Local: `http://localhost:3000/api/auth/google/callback`
+- Vercel production: `https://your-domain.com/api/auth/google/callback`
 
 Example request:
 

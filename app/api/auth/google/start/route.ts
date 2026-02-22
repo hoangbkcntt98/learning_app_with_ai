@@ -27,6 +27,15 @@ function resolveAppOrigin(request: Request) {
   return new URL(request.url).origin;
 }
 
+function resolveGoogleRedirectUri(request: Request) {
+  // Allow forcing one exact callback URL to avoid OAuth redirect mismatch.
+  const explicitRedirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (explicitRedirectUri) {
+    return explicitRedirectUri;
+  }
+  return `${resolveAppOrigin(request)}/api/auth/google/callback`;
+}
+
 export async function GET(request: Request) {
   // Start Google OAuth flow and include CSRF state token in cookie + query.
   const loginUrl = new URL("/login", resolveAppOrigin(request));
@@ -40,9 +49,8 @@ export async function GET(request: Request) {
 
   try {
     const clientId = getGoogleClientId();
-    const origin = resolveAppOrigin(request);
     const state = randomBytes(24).toString("hex");
-    const redirectUri = `${origin}/api/auth/google/callback`;
+    const redirectUri = resolveGoogleRedirectUri(request);
 
     const params = new URLSearchParams({
       client_id: clientId,

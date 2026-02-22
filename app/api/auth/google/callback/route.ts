@@ -45,6 +45,15 @@ function resolveAppOrigin(request: Request) {
   return new URL(request.url).origin;
 }
 
+function resolveGoogleRedirectUri(request: Request) {
+  // Keep token exchange redirect URI identical to OAuth start redirect URI.
+  const explicitRedirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (explicitRedirectUri) {
+    return explicitRedirectUri;
+  }
+  return `${resolveAppOrigin(request)}/api/auth/google/callback`;
+}
+
 async function exchangeCodeForAccessToken(params: {
   code: string;
   redirectUri: string;
@@ -118,7 +127,7 @@ export async function GET(request: Request) {
     }
 
     const { clientId, clientSecret } = getGoogleCredentials();
-    const redirectUri = `${appOrigin}/api/auth/google/callback`;
+    const redirectUri = resolveGoogleRedirectUri(request);
     const accessToken = await exchangeCodeForAccessToken({
       code,
       redirectUri,
