@@ -22,6 +22,11 @@ function calculateLevelFromPoints(points) {
 }
 
 async function main() {
+  // Keep seeded users aligned with the same default quota used by runtime.
+  const defaultAiDailyQuota =
+    Number.parseInt(process.env.DEFAULT_AI_DAILY_QUOTA_PER_USER ?? "20", 10) > 0
+      ? Number.parseInt(process.env.DEFAULT_AI_DAILY_QUOTA_PER_USER ?? "20", 10)
+      : 20;
   const seeds = [
     {
       email: "test@example.com",
@@ -51,6 +56,7 @@ async function main() {
         data: {
           name: seed.name,
           role: seed.role,
+          aiDailyQuota: defaultAiDailyQuota,
         },
       });
       continue;
@@ -65,6 +71,7 @@ async function main() {
         points,
         level: calculateLevelFromPoints(points),
         role: seed.role,
+        aiDailyQuota: defaultAiDailyQuota,
       },
     });
     createdCount += 1;

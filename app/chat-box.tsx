@@ -98,7 +98,8 @@ export function ChatBox() {
   async function sendChatRequest(params: {
     promptText: string;
     image: File | null;
-    language: (typeof chatLanguages)[number];
+    // Reuse the shared language union type used by the language selector.
+    language: SupportedLanguage;
   }) {
     setError("");
     setIsLoading(true);
@@ -145,9 +146,11 @@ export function ChatBox() {
         setError("No response returned.");
         return;
       }
+      // Freeze validated messages so TypeScript keeps the non-undefined narrowing.
+      const receivedMessages = body.messages;
       setMessages((prev) => {
         const withoutOptimistic = prev.filter((message) => message.id !== optimisticId);
-        return [...withoutOptimistic, ...body.messages];
+        return [...withoutOptimistic, ...receivedMessages];
       });
     } catch {
       setError("Failed to reach chat service.");

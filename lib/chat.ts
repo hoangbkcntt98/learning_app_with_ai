@@ -19,6 +19,7 @@ function mapChatMessage(row: {
   content: string;
   createdAt: Date;
 }): ChatMessageRecord {
+  // Convert Prisma row shape (including bigint IDs) into app-level DTO.
   return {
     id: Number(row.id),
     userEmail: row.userEmail,
@@ -30,6 +31,7 @@ function mapChatMessage(row: {
 }
 
 export function sanitizeChatMessage(message: ChatMessageRecord) {
+  // Return only fields safe/needed for API responses to clients.
   return {
     id: message.id,
     exchangeId: message.exchangeId,
@@ -45,6 +47,7 @@ export async function findCachedAssistantResponse(params: {
   language: string;
   imageHash: string;
 }) {
+  // Resolve a single globally cached answer by prompt+language+image hash.
   const cache = await prisma.chatPromptCache.findUnique({
     where: {
       promptText_language_imageHash: {
@@ -65,6 +68,7 @@ export async function upsertChatPromptCache(params: {
   imageHash: string;
   assistantText: string;
 }) {
+  // Store/refresh the latest answer for a cache key used across users.
   await prisma.chatPromptCache.upsert({
     where: {
       promptText_language_imageHash: {
@@ -92,6 +96,7 @@ export async function listCachedAssistantResponses(params: {
   language: string;
   imageHash: string;
 }) {
+  // Return all historical assistant answers for the exact prompt context.
   const exchanges = await prisma.chatExchange.findMany({
     where: {
       userText: params.promptText,
@@ -115,6 +120,7 @@ export async function listChatMessagesByUser(
   limit = 50,
   source?: "ai_chat" | "explain",
 ) {
+  // Load chat timeline for a user; optionally scope to a feature source.
   const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.trunc(limit))) : 50;
 
   const messages = await prisma.chatMessage.findMany({
@@ -144,6 +150,7 @@ export async function createChatExchange(params: {
   language: string;
   imageHash?: string;
 }) {
+  // Persist one user/assistant pair and link both messages to one exchange.
   const [exchange, userInsert, assistantInsert] = await prisma.$transaction(async (tx) => {
     const createdExchange = await tx.chatExchange.create({
       data: {

@@ -15,6 +15,7 @@ type BedrockGenerateOptions = {
 };
 
 function requireEnv(name: string): string {
+  // Read and validate a required environment variable.
   const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -23,6 +24,7 @@ function requireEnv(name: string): string {
 }
 
 function parseNumberEnv(name: string, fallback: number): number {
+  // Parse an env var as number, or fallback when missing/invalid.
   const rawValue = process.env[name];
   if (!rawValue) {
     return fallback;
@@ -32,6 +34,7 @@ function parseNumberEnv(name: string, fallback: number): number {
 }
 
 function createBedrockClient() {
+  // Build a Bedrock Runtime client from AWS credentials in env vars.
   const accessKeyId = requireEnv("AWS_ACCESS_KEY_ID");
   const secretAccessKey = requireEnv("AWS_SECRET_ACCESS_KEY");
   const sessionToken = process.env.AWS_SESSION_TOKEN?.trim();
@@ -51,6 +54,7 @@ export async function generateBedrockText(
   prompt: string,
   options?: BedrockGenerateOptions,
 ): Promise<string> {
+  // Send a prompt (and optional image) to Bedrock and return plain text output.
   const modelId = process.env.BEDROCK_MODEL_ID?.trim() || DEFAULT_MODEL_ID;
   const baseSystemPrompt = process.env.BEDROCK_SYSTEM_PROMPT?.trim();
   const extraSystemPrompt = options?.extraSystemPrompt?.trim();

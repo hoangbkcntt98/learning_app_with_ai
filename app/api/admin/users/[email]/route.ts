@@ -19,6 +19,7 @@ export async function PATCH(request: Request, context: Context) {
     points?: number;
     role?: "admin" | "user";
     password?: string;
+    aiDailyQuota?: number;
   };
 
   if (typeof body.points === "number" && !Number.isFinite(body.points)) {
@@ -35,6 +36,15 @@ export async function PATCH(request: Request, context: Context) {
       { status: 400 },
     );
   }
+  if (
+    typeof body.aiDailyQuota === "number" &&
+    (!Number.isFinite(body.aiDailyQuota) || body.aiDailyQuota <= 0)
+  ) {
+    return NextResponse.json(
+      { error: "aiDailyQuota must be a positive number." },
+      { status: 400 },
+    );
+  }
 
   const user = await updateUserByAdmin({
     email,
@@ -42,6 +52,7 @@ export async function PATCH(request: Request, context: Context) {
     points: body.points,
     role: body.role,
     password: body.password,
+    aiDailyQuota: body.aiDailyQuota,
   });
 
   if (!user) {

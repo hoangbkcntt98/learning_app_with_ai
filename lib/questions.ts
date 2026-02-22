@@ -22,6 +22,7 @@ function mapQuestion(row: {
   option4: string;
   correctIndex: number;
 }): QuestionRecord {
+  // Convert database question row shape into the app-level record format.
   return {
     id: row.id,
     level: row.level as JlptLevel,
@@ -32,10 +33,12 @@ function mapQuestion(row: {
 }
 
 export function isJlptLevel(value: string): value is JlptLevel {
+  // Check whether a string is one of the supported JLPT level values.
   return allowedLevels.includes(value as JlptLevel);
 }
 
 export async function readQuestions() {
+  // Read all questions sorted by ID for deterministic list display.
   const questions = await prisma.question.findMany({
     orderBy: { id: "asc" },
   });
@@ -43,6 +46,7 @@ export async function readQuestions() {
 }
 
 export async function findQuestionById(id: number) {
+  // Fetch a single question by ID and map it into app format.
   const question = await prisma.question.findUnique({
     where: { id },
   });
@@ -50,6 +54,7 @@ export async function findQuestionById(id: number) {
 }
 
 export async function createQuestion(params: Omit<QuestionRecord, "id">) {
+  // Create a new question from app format into DB column format.
   const created = await prisma.question.create({
     data: {
       level: params.level,
@@ -71,6 +76,7 @@ export async function updateQuestion(params: {
   options?: [string, string, string, string];
   correctIndex?: number;
 }) {
+  // Partially update a question; missing fields keep their current values.
   const current = await findQuestionById(params.id);
   if (!current) {
     return null;
@@ -99,6 +105,7 @@ export async function updateQuestion(params: {
 }
 
 export function sanitizeQuestion(question: QuestionRecord) {
+  // Return a student-safe question shape without the correct answer index.
   return {
     id: question.id,
     level: question.level,
@@ -108,6 +115,7 @@ export function sanitizeQuestion(question: QuestionRecord) {
 }
 
 export function sanitizeQuestionForAdmin(question: QuestionRecord) {
+  // Return full question details including answer index for admin tools.
   return {
     id: question.id,
     level: question.level,

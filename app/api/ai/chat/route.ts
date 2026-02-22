@@ -11,6 +11,7 @@ import {
 import type { BedrockImageInput } from "@/lib/bedrock";
 import type { ImageFormat } from "@aws-sdk/client-bedrock-runtime";
 import { createHash } from "node:crypto";
+import { canUseAiModel, incrementDailyAiUsage } from "@/lib/settings";
 
 type ChatRequestBody = {
   prompt?: string;
@@ -23,6 +24,7 @@ const MAX_PROMPT_LENGTH = 2000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 function normalizeLanguage(input: string): string {
+  // Normalize user-provided labels into one canonical language value.
   const value = input.trim().toLowerCase();
   switch (value) {
     case "japanese":
@@ -42,6 +44,7 @@ function normalizeLanguage(input: string): string {
 }
 
 function mapMimeTypeToBedrockImageFormat(mimeType: string): ImageFormat | null {
+  // Restrict uploads to image formats supported by Bedrock Converse image blocks.
   switch (mimeType) {
     case "image/jpeg":
     case "image/jpg":
@@ -58,6 +61,7 @@ function mapMimeTypeToBedrockImageFormat(mimeType: string): ImageFormat | null {
 }
 
 function normalizeSource(input: string): "ai_chat" | "explain" {
+  // Scope messages by feature to avoid mixing history between screens.
   return input.trim().toLowerCase() === "explain" ? "explain" : "ai_chat";
 }
 
@@ -70,6 +74,7 @@ async function parseChatInput(request: Request): Promise<{
   forceModel: boolean;
   image?: BedrockImageInput;
 }> {
+  // Parse both JSON and multipart requests into one normalized payload.
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("multipart/form-data")) {
@@ -128,6 +133,7 @@ async function parseChatInput(request: Request): Promise<{
 }
 
 export async function GET(request: Request) {
+  // Return chat history for current user, optionally filtered by source.
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -146,6 +152,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Main chat endpoint: optional cache hit first, then model call fallback.
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -177,10 +184,23 @@ export async function POST(request: Request) {
     }
 
     if (!text) {
+      // Enforce daily per-user model-call quota before invoking Bedrock.
+      const quota = await canUseAiModel(user.email);
+      if (!quota.allowed) {
+        return NextResponse.json(
+          {
+            error: `Daily AI limit reached (${quota.used}/${quota.limit}). Try again tomorrow.`,
+          },
+          { status: 429 },
+        );
+      }
+
       text = await generateBedrockText(parsedInput.prompt, {
         image: parsedInput.image,
         extraSystemPrompt: `You must answer strictly in ${parsedInput.language}. Do not use other languages.`,
       });
+      // Count only real model calls; cached responses do not consume quota.
+      await incrementDailyAiUsage(user.email);
       await upsertChatPromptCache({
         userEmail: user.email,
         promptText: parsedInput.prompt,

@@ -343,7 +343,7 @@ export function GameClient({
 
       <div className="w-full rounded-2xl border border-black/10 p-8 shadow-sm">
         <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-semibold">Play game</h1>
+          <h1 className="text-2xl font-semibold">Learning</h1>
           <Link href="/" className="text-sm text-blue-700 underline">
             Back to menu
           </Link>

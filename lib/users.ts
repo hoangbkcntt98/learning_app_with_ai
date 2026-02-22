@@ -8,9 +8,21 @@ export type UserRecord = {
   points: number;
   level: number;
   role: "admin" | "user";
+  aiDailyQuota: number;
 };
 
+function getDefaultAiDailyQuotaPerUser() {
+  // Read fallback per-user daily AI quota from env with a safe default.
+  const raw = process.env.DEFAULT_AI_DAILY_QUOTA_PER_USER?.trim();
+  if (!raw) {
+    return 20;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 20;
+}
+
 export function calculateLevelFromPoints(points: number) {
+  // Convert total points into a level using powers-of-10 thresholds.
   if (!Number.isFinite(points) || points < 10) {
     return 0;
   }
@@ -23,6 +35,7 @@ export function calculateLevelFromPoints(points: number) {
 }
 
 function normalizePoints(value: unknown) {
+  // Coerce unknown point input into a safe integer value.
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return 0;
   }
@@ -36,7 +49,10 @@ function mapUser(row: {
   points: number;
   level: number;
   role: string;
+  aiDailyQuota: number | null;
 }): UserRecord {
+  // Map raw database user row into the typed app-level user record.
+  const defaultAiDailyQuota = getDefaultAiDailyQuotaPerUser();
   return {
     email: row.email,
     passwordHash: row.passwordHash,
@@ -44,17 +60,37 @@ function mapUser(row: {
     points: row.points,
     level: row.level,
     role: row.role === "admin" ? "admin" : "user",
+    aiDailyQuota:
+      typeof row.aiDailyQuota === "number" && row.aiDailyQuota > 0
+        ? row.aiDailyQuota
+        : defaultAiDailyQuota,
   };
 }
 
 export async function readUsers(): Promise<UserRecord[]> {
+  // Read all users sorted by email for predictable admin listing.
   const users = await prisma.user.findMany({
     orderBy: { email: "asc" },
   });
   return users.map(mapUser);
 }
 
+export async function countUsers() {
+  // Return total number of registered user accounts.
+  return prisma.user.count();
+}
+
+export async function updateAllUsersAiDailyQuota(aiDailyQuota: number) {
+  // Apply one daily AI quota value to all existing users.
+  return prisma.user.updateMany({
+    data: {
+      aiDailyQuota,
+    },
+  });
+}
+
 export async function findUserByEmail(email: string) {
+  // Find one user by normalized email, or return null when invalid/missing.
   if (typeof email !== "string") {
     return null;
   }
@@ -74,11 +110,18 @@ export async function createUser(params: {
   name: string;
   role?: "admin" | "user";
   points?: number;
+  aiDailyQuota?: number;
 }) {
+  // Create a new user with hashed password and computed starting level.
   const email = params.email.trim().toLowerCase();
   const points = normalizePoints(params.points);
   const level = calculateLevelFromPoints(points);
   const passwordHash = hashPassword(params.password);
+  const defaultAiDailyQuota = getDefaultAiDailyQuotaPerUser();
+  const aiDailyQuota =
+    typeof params.aiDailyQuota === "number" && Number.isFinite(params.aiDailyQuota)
+      ? Math.max(1, Math.trunc(params.aiDailyQuota))
+      : defaultAiDailyQuota;
 
   try {
     const created = await prisma.user.create({
@@ -89,6 +132,7 @@ export async function createUser(params: {
         points,
         level,
         role: params.role ?? "user",
+        aiDailyQuota,
       },
     });
     return mapUser(created);
@@ -98,6 +142,7 @@ export async function createUser(params: {
 }
 
 export async function addPointsToUser(email: string, delta: number) {
+  // Increment a user's points and recompute level from the new total.
   const current = await findUserByEmail(email);
   if (!current) {
     return null;
@@ -122,13 +167,16 @@ export async function createUserByAdmin(params: {
   name: string;
   role: "admin" | "user";
   points?: number;
+  aiDailyQuota?: number;
 }) {
+  // Admin wrapper around createUser that requires explicit role input.
   return createUser({
     email: params.email,
     password: params.password,
     name: params.name,
     role: params.role,
     points: params.points ?? 0,
+    aiDailyQuota: params.aiDailyQuota,
   });
 }
 
@@ -138,7 +186,9 @@ export async function updateUserByAdmin(params: {
   points?: number;
   role?: "admin" | "user";
   password?: string;
+  aiDailyQuota?: number;
 }) {
+  // Admin update path for profile, role, points, and optional password.
   const current = await findUserByEmail(params.email);
   if (!current) {
     return null;
@@ -153,6 +203,10 @@ export async function updateUserByAdmin(params: {
   const nextPasswordHash = params.password
     ? hashPassword(params.password)
     : current.passwordHash;
+  const nextAiDailyQuota =
+    typeof params.aiDailyQuota === "number" && Number.isFinite(params.aiDailyQuota)
+      ? Math.max(1, Math.trunc(params.aiDailyQuota))
+      : current.aiDailyQuota;
 
   const updated = await prisma.user.update({
     where: { email: current.email },
@@ -162,6 +216,7 @@ export async function updateUserByAdmin(params: {
       level: nextLevel,
       role: nextRole,
       passwordHash: nextPasswordHash,
+      aiDailyQuota: nextAiDailyQuota,
     },
   });
 
@@ -169,11 +224,13 @@ export async function updateUserByAdmin(params: {
 }
 
 export function sanitizeUser(user: UserRecord) {
+  // Remove sensitive fields before returning user data to clients.
   return {
     email: user.email,
     name: user.name,
     points: user.points,
     level: user.level,
     role: user.role,
+    aiDailyQuota: user.aiDailyQuota,
   };
 }

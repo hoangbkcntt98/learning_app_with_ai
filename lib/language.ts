@@ -9,6 +9,7 @@ export const LANGUAGE_OPTIONS = [
 export type SupportedLanguage = (typeof LANGUAGE_OPTIONS)[number];
 
 export function normalizeSupportedLanguage(input?: string | null): SupportedLanguage {
+  // Convert env/user input into one supported UI language option.
   const value = (input ?? "").trim().toLowerCase();
   switch (value) {
     case "english":

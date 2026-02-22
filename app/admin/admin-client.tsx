@@ -10,6 +10,7 @@ type User = {
   points: number;
   level: number;
   role: "admin" | "user";
+  aiDailyQuota: number;
 };
 
 type Question = {
@@ -20,9 +21,17 @@ type Question = {
   correctIndex: number;
 };
 
+type AppSettings = {
+  maxRegisteredUsers: number;
+};
+
 export function AdminClient() {
   const [users, setUsers] = useState<User[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [settings, setSettings] = useState<AppSettings>({
+    maxRegisteredUsers: 1000,
+  });
+  const [allUsersAiDailyQuotaInput, setAllUsersAiDailyQuotaInput] = useState("20");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("");
@@ -46,20 +55,27 @@ export function AdminClient() {
       setError("");
       setLoadingMessage("Loading admin data...");
       try {
-        const [usersResponse, questionsResponse] = await Promise.all([
+        // Load all admin datasets in one request batch for faster UI readiness.
+        const [usersResponse, questionsResponse, settingsResponse] = await Promise.all([
           fetch("/api/admin/users"),
           fetch("/api/admin/questions"),
+          fetch("/api/admin/settings"),
         ]);
 
-        if (!usersResponse.ok || !questionsResponse.ok) {
+        if (!usersResponse.ok || !questionsResponse.ok || !settingsResponse.ok) {
           setError("Failed to load admin data.");
           return;
         }
 
         const usersBody = (await usersResponse.json()) as { users: User[] };
         const questionsBody = (await questionsResponse.json()) as { questions: Question[] };
+        const settingsBody = (await settingsResponse.json()) as { settings: AppSettings };
         setUsers(usersBody.users ?? []);
         setQuestions(questionsBody.questions ?? []);
+        setSettings(settingsBody.settings);
+        // Initialize the bulk-update input from first user or env fallback default.
+        const firstUserQuota = usersBody.users?.[0]?.aiDailyQuota;
+        setAllUsersAiDailyQuotaInput(String(firstUserQuota ?? 20));
       } catch {
         setError("Failed to load admin data.");
       } finally {
@@ -115,6 +131,7 @@ export function AdminClient() {
           name: user.name,
           points: user.points,
           role: user.role,
+          aiDailyQuota: user.aiDailyQuota,
         }),
       });
       if (!response.ok) {
@@ -194,6 +211,74 @@ export function AdminClient() {
     }
   }
 
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setStatus("");
+    setLoadingMessage("Saving settings...");
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maxRegisteredUsers: settings.maxRegisteredUsers,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setError(body.error ?? "Failed to save settings.");
+        return;
+      }
+
+      const body = (await response.json()) as { settings: AppSettings };
+      setSettings(body.settings);
+      setStatus("Settings updated.");
+    } catch {
+      setError("Failed to save settings.");
+    } finally {
+      setLoadingMessage("");
+    }
+  }
+
+  async function updateAiDailyQuotaForAllUsers(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setStatus("");
+
+    const parsedQuota = Number.parseInt(allUsersAiDailyQuotaInput, 10);
+    if (!Number.isFinite(parsedQuota) || parsedQuota <= 0) {
+      setError("AI daily quota must be a positive number.");
+      return;
+    }
+
+    setLoadingMessage("Updating AI quota for all users...");
+    try {
+      const response = await fetch("/api/admin/users/quota", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiDailyQuota: parsedQuota }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setError(body.error ?? "Failed to update AI quota for all users.");
+        return;
+      }
+
+      // Update local state so admin sees the new quota instantly in user rows.
+      setUsers((prev) =>
+        prev.map((user) => ({
+          ...user,
+          aiDailyQuota: parsedQuota,
+        })),
+      );
+      setStatus("AI daily quota updated for all users.");
+    } catch {
+      setError("Failed to update AI quota for all users.");
+    } finally {
+      setLoadingMessage("");
+    }
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {loadingMessage ? <LoadingPopup message={loadingMessage} /> : null}
@@ -207,6 +292,53 @@ export function AdminClient() {
 
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       {status ? <p className="mt-3 text-sm text-green-700">{status}</p> : null}
+
+      <section className="mt-6 rounded-xl border border-black/10 p-4">
+        <h2 className="text-lg font-semibold">Settings</h2>
+        <form onSubmit={saveSettings} className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">
+              Maximum registered users
+            </span>
+            <input
+              type="number"
+              min={1}
+              value={settings.maxRegisteredUsers}
+              onChange={(event) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  maxRegisteredUsers: Number.parseInt(event.target.value || "1", 10),
+                }))
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
+            Save settings
+          </button>
+        </form>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-black/10 p-4">
+        <h2 className="text-lg font-semibold">Setting for all user</h2>
+        <form onSubmit={updateAiDailyQuotaForAllUsers} className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">
+              AI_DAILY_QUOTA_PER_USER
+            </span>
+            <input
+              type="number"
+              min={1}
+              value={allUsersAiDailyQuotaInput}
+              onChange={(event) => setAllUsersAiDailyQuotaInput(event.target.value)}
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
+            Apply to all users
+          </button>
+        </form>
+      </section>
 
       <section className="mt-6 rounded-xl border border-black/10 p-4">
         <h2 className="text-lg font-semibold">Add user</h2>
@@ -271,7 +403,7 @@ export function AdminClient() {
         <h2 className="text-lg font-semibold">Edit users</h2>
         <div className="mt-3 space-y-3">
           {users.map((user, index) => (
-            <div key={user.email} className="grid gap-2 rounded-lg border border-black/10 p-3 md:grid-cols-7">
+            <div key={user.email} className="grid gap-2 rounded-lg border border-black/10 p-3 md:grid-cols-8">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-black/70">Email</span>
                 <input
@@ -331,6 +463,25 @@ export function AdminClient() {
                   <option value="user">user</option>
                   <option value="admin">admin</option>
                 </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-black/70">AI Daily Quota</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={user.aiDailyQuota}
+                  onChange={(event) =>
+                    setUsers((prev) => {
+                      const next = [...prev];
+                      next[index] = {
+                        ...next[index],
+                        aiDailyQuota: Number.parseInt(event.target.value || "1", 10),
+                      };
+                      return next;
+                    })
+                  }
+                  className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+                />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-black/70">Level</span>
