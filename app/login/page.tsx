@@ -16,6 +16,8 @@ function mapGoogleError(code: string | undefined) {
       return "Registration limit reached. Contact admin.";
     case "callback_failed":
       return "Google login failed. Please try again.";
+    case "start_failed":
+      return "Google login could not start. Check server env variables and OAuth setup.";
     default:
       return "";
   }

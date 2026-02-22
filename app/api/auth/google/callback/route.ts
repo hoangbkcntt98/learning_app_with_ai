@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSessionToken, sessionCookieName } from "@/lib/auth";
 import { countUsers, createUser, findUserByEmail } from "@/lib/users";
@@ -28,11 +29,19 @@ function getGoogleCredentials() {
 }
 
 function resolveAppOrigin(request: Request) {
-  // Use explicit app URL when provided, otherwise infer from callback URL.
+  // Prefer forwarded host/proto on Vercel, then fallback to explicit env URL.
+  const forwardedHost = request.headers.get("x-forwarded-host")?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.trim() || "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
   const envOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (envOrigin) {
     return envOrigin.replace(/\/+$/, "");
   }
+
+  // Final fallback is current request origin.
   return new URL(request.url).origin;
 }
 
@@ -83,12 +92,8 @@ export async function GET(request: Request) {
   const appOrigin = resolveAppOrigin(request);
   const loginUrl = new URL("/login", appOrigin);
   const homeUrl = new URL("/", appOrigin);
-  const stateFromCookie = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(`${oauthStateCookieName}=`))
-    ?.split("=")[1] ?? "";
+  const cookieStore = await cookies();
+  const stateFromCookie = cookieStore.get(oauthStateCookieName)?.value ?? "";
 
   function redirectToLoginWithError(errorCode: string) {
     // Include error code in login URL so the UI can show a useful message.

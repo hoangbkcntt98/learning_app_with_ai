@@ -13,16 +13,31 @@ function getGoogleClientId() {
 }
 
 function resolveAppOrigin(request: Request) {
-  // Use explicit app URL when provided, otherwise infer from request URL.
+  // Prefer forwarded host/proto on Vercel, then fallback to explicit env URL.
+  const forwardedHost = request.headers.get("x-forwarded-host")?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.trim() || "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
   const envOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (envOrigin) {
     return envOrigin.replace(/\/+$/, "");
   }
+  // Final fallback is current request origin.
   return new URL(request.url).origin;
 }
 
 export async function GET(request: Request) {
   // Start Google OAuth flow and include CSRF state token in cookie + query.
+  const loginUrl = new URL("/login", resolveAppOrigin(request));
+
+  function redirectToLoginWithError(errorCode: string) {
+    // Include explicit start-stage error for easier production debugging.
+    const url = new URL(loginUrl);
+    url.searchParams.set("google_error", errorCode);
+    return NextResponse.redirect(url, { status: 302 });
+  }
+
   try {
     const clientId = getGoogleClientId();
     const origin = resolveAppOrigin(request);
@@ -52,6 +67,6 @@ export async function GET(request: Request) {
     });
     return response;
   } catch {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return redirectToLoginWithError("start_failed");
   }
 }
