@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSessionToken, sessionCookieName } from "@/lib/auth";
-import { countUsers, createUser, findUserByEmail } from "@/lib/users";
+import { countUsers, createUser, findUserByEmail, updateUserAvatar } from "@/lib/users";
 import { readAppSettings } from "@/lib/settings";
 
 const oauthStateCookieName = "google_oauth_state";
@@ -15,6 +15,7 @@ type GoogleTokenResponse = {
 type GoogleUserInfoResponse = {
   email?: string;
   name?: string;
+  picture?: string;
   email_verified?: boolean;
 };
 
@@ -140,6 +141,7 @@ export async function GET(request: Request) {
 
     const userInfo = await loadGoogleUserInfo(accessToken);
     const email = userInfo?.email?.trim().toLowerCase() ?? "";
+    const avatarUrl = userInfo?.picture?.trim() ?? "";
     if (!email || userInfo?.email_verified === false) {
       return redirectToLoginWithError("email_not_verified");
     }
@@ -155,9 +157,16 @@ export async function GET(request: Request) {
       user = await createUser({
         email,
         name: userInfo?.name?.trim() || email.split("@")[0],
+        avatarUrl: avatarUrl || null,
         // Create an internal password so OAuth users can still fit current schema.
         password: randomBytes(24).toString("hex"),
       });
+    } else if (!user.avatarUrl && avatarUrl) {
+      // Backfill avatar from Google for existing accounts missing one.
+      const updated = await updateUserAvatar(user.email, avatarUrl);
+      if (updated) {
+        user = updated;
+      }
     }
 
     const response = NextResponse.redirect(homeUrl, { status: 302 });

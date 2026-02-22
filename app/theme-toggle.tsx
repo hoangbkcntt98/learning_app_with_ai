@@ -15,20 +15,22 @@ function applyTheme(mode: ThemeMode) {
 }
 
 export function ThemeToggle() {
-  const [mode, setMode] = useState<ThemeMode>("light");
+  const [mode, setMode] = useState<ThemeMode>(() => {
+    // Resolve initial mode once from local storage; default stays Light.
+    if (typeof window === "undefined") {
+      return "light";
+    }
+    const stored = window.localStorage.getItem(storageKey);
+    return stored === "light" || stored === "dark" ? stored : "light";
+  });
 
   useEffect(() => {
-    // Initialize theme from local storage with Light as the default mode.
-    const stored = window.localStorage.getItem(storageKey);
-    const initialMode: ThemeMode =
-      stored === "light" || stored === "dark" ? stored : "light";
-    setMode(initialMode);
-    applyTheme(initialMode);
-  }, []);
+    // Keep DOM theme class synchronized with current React theme mode.
+    applyTheme(mode);
+  }, [mode]);
 
   function handleModeChange(nextMode: ThemeMode) {
     setMode(nextMode);
-    applyTheme(nextMode);
   }
 
   function handleToggle() {

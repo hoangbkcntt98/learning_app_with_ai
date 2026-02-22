@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LoadingPopup } from "../loading-popup";
+import { FeedbackPopup } from "../feedback-popup";
 import { DEFAULT_LANGUAGE, LANGUAGE_OPTIONS, type SupportedLanguage } from "@/lib/language";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
@@ -49,6 +50,7 @@ export function GameClient({
   const [userLevel, setUserLevel] = useState(initialLevel);
   const [error, setError] = useState("");
   const [showExplanation, setShowExplanation] = useState(false);
+  const [showAnswerFeedbackPopup, setShowAnswerFeedbackPopup] = useState(false);
   const [isLoadingExplanation, setIsLoadingExplanation] = useState(false);
   const [explanationError, setExplanationError] = useState("");
   const [explanationLanguage, setExplanationLanguage] = useState<SupportedLanguage>(
@@ -141,6 +143,7 @@ export function GameClient({
       setAnswerResult(body);
       setPoints(body.points);
       setUserLevel(body.level);
+      setShowAnswerFeedbackPopup(true);
     } catch {
       setError("Failed to submit answer.");
     } finally {
@@ -151,6 +154,7 @@ export function GameClient({
   function goToNextQuestion() {
     setAnswerResult(null);
     setSelectedIndex(null);
+    setShowAnswerFeedbackPopup(false);
     setShowExplanation(false);
     setExplanationError("");
     setExplanationLanguage(DEFAULT_LANGUAGE);
@@ -341,11 +345,22 @@ export function GameClient({
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-8">
       {isLoadingQuestions ? <LoadingPopup message="Loading questions..." /> : null}
       {isSubmittingAnswer ? <LoadingPopup message="Checking your answer..." /> : null}
+      {answerResult ? (
+        <FeedbackPopup
+          isOpen={showAnswerFeedbackPopup}
+          title={answerResult.correct ? "Correct! +5 points." : "Incorrect. -5 points."}
+          message={answerResult.correct ? "すごいね！" : "ざんねんね！"}
+          imageSrc={answerResult.correct ? "/images/correct.png" : "/images/incorrect.png"}
+          imageAlt={answerResult.correct ? "Correct answer celebration" : "Incorrect answer reaction"}
+          tone={answerResult.correct ? "success" : "error"}
+          onClose={() => setShowAnswerFeedbackPopup(false)}
+        />
+      ) : null}
 
-      {/* Show app panda logo on this user route for consistent branding. */}
+      {/* Show feature-specific top image for learning screen. */}
       <Image
-        src="/images/logo.png"
-        alt="BuBu Learning panda logo"
+        src="/images/learning.png"
+        alt="Learning feature"
         width={112}
         height={112}
         className="mb-6 h-28 w-28 rounded-xl object-cover"
@@ -426,14 +441,6 @@ export function GameClient({
                 );
               })}
             </div>
-
-            {answerResult ? (
-              <div className="mt-4">
-                <p className="text-sm">
-                  {answerResult.correct ? "Correct! +5 points." : "Incorrect. -5 points."}
-                </p>
-              </div>
-            ) : null}
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button

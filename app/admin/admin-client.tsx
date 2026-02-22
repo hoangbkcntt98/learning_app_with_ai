@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { LoadingPopup } from "../loading-popup";
 
 type User = {
@@ -282,6 +283,18 @@ export function AdminClient() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {loadingMessage ? <LoadingPopup message={loadingMessage} /> : null}
+
+      {/* Show feature-specific top image for admin screen. */}
+      <div className="mb-5 flex justify-center">
+        <Image
+          src="/images/admin.png"
+          alt="Admin feature"
+          width={112}
+          height={112}
+          className="h-28 w-28 rounded-xl object-cover"
+          priority
+        />
+      </div>
 
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Admin Panel</h1>

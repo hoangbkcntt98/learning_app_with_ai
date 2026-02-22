@@ -12,11 +12,11 @@ export default async function ForumPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl px-6 py-8">
-      {/* Show app panda logo on this user route for consistent branding. */}
+      {/* Show feature-specific top image for forum screen. */}
       <div className="mb-5 flex justify-center">
         <Image
-          src="/images/logo.png"
-          alt="BuBu Learning panda logo"
+          src="/images/forum.png"
+          alt="Forum feature"
           width={112}
           height={112}
           className="h-28 w-28 rounded-xl object-cover"

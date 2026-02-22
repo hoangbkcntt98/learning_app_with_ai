@@ -11,6 +11,7 @@ model User {
   email        String         @id
   passwordHash String         @map("password_hash")
   name         String
+  avatarUrl    String?        @map("avatar_url")
   points       Int            @default(0)
   level        Int            @default(0)
   role         String
