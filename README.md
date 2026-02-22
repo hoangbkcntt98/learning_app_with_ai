@@ -17,6 +17,7 @@ It uses AWS credentials from environment variables. Copy `.env.example` to `.env
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_SESSION_TOKEN` (only needed for temporary credentials)
+- `AUTH_SECRET`
 
 Optional:
 
@@ -25,6 +26,31 @@ Optional:
 - `BEDROCK_MAX_TOKENS`
 - `BEDROCK_TEMPERATURE`
 - `BEDROCK_SYSTEM_PROMPT`
+- `DEFAULT_AI_DAILY_QUOTA_PER_USER`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `NEXT_PUBLIC_APP_URL`
+
+## Google Login Setup
+
+The app supports login via Google OAuth 2.0.
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/).
+2. Create/select a project.
+3. Configure OAuth consent screen.
+4. Create OAuth Client ID (Web application).
+5. Add Authorized redirect URIs:
+   - Local: `http://localhost:3000/api/auth/google/callback`
+   - Production: `https://<your-domain>/api/auth/google/callback`
+6. Put credentials into env:
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `NEXT_PUBLIC_APP_URL` (e.g. `http://localhost:3000` or your production URL)
+
+When user clicks **Continue with Google**, app redirects to:
+
+- `/api/auth/google/start` -> Google OAuth screen
+- `/api/auth/google/callback` -> app creates/signs in user and sets session cookie
 
 Example request:
 
@@ -76,8 +102,51 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deploy to Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Use these steps to deploy this app to production on Vercel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Push your code to GitHub/GitLab/Bitbucket.
+2. In Vercel, click **Add New > Project** and import your repository.
+3. If this repository contains multiple folders, set **Root Directory** to `japanesegame`.
+4. In **Environment Variables**, add all required values:
+   - `DATABASE_URL`
+   - `AUTH_SECRET`
+   - `AWS_REGION`
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_SESSION_TOKEN` (only if you use temporary AWS credentials)
+   - `BEDROCK_REGION` (optional)
+   - `BEDROCK_MODEL_ID` (optional)
+   - `BEDROCK_MAX_TOKENS` (optional)
+   - `BEDROCK_TEMPERATURE` (optional)
+   - `BEDROCK_SYSTEM_PROMPT` (optional)
+   - `NEXT_PUBLIC_DEFAULT_LANGUAGE` (optional)
+   - `DEFAULT_AI_DAILY_QUOTA_PER_USER` (optional, default per-user AI daily quota)
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `NEXT_PUBLIC_APP_URL` (for OAuth callback URL generation)
+5. Click **Deploy**.
+
+### Prisma Production Setup
+
+After setting production `DATABASE_URL`, sync schema to your production DB:
+
+```bash
+npm run db:push
+```
+
+Then seed initial users/questions if needed:
+
+```bash
+npm run seed:users
+npm run seed:questions
+```
+
+Run these commands with production environment variables (for example in your CI/CD job or local terminal pointing to production DB).
+
+### Notes
+
+- Do not commit real secrets in `.env`.
+- If Vercel build fails due to Prisma client generation on Windows locally, deploy can still succeed on Vercel Linux builders.
+- For custom domains, configure in **Vercel Project > Settings > Domains**.
