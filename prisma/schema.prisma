@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  email        String         @id
+  passwordHash String         @map("password_hash")
+  name         String
+  points       Int            @default(0)
+  level        Int            @default(0)
+  role         String
+  createdAt    DateTime       @default(now()) @map("created_at")
+  chatMessages ChatMessage[]
+  chatExchanges ChatExchange[]
+  chatPromptCaches ChatPromptCache[]
+  forumPosts   ForumPost[]
+  forumComments ForumComment[]
+
+  @@map("users")
+}
+
+model Question {
+  id           Int      @id @default(autoincrement())
+  level        String
+  prompt       String
+  option1      String   @map("option_1")
+  option2      String   @map("option_2")
+  option3      String   @map("option_3")
+  option4      String   @map("option_4")
+  correctIndex Int      @map("correct_index")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("questions")
+}
+
+model ChatMessage {
+  id        BigInt   @id @default(autoincrement())
+  userEmail String   @map("user_email")
+  exchangeId BigInt? @map("exchange_id")
+  role      String
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  exchange  ChatExchange? @relation(fields: [exchangeId], references: [id], onDelete: SetNull)
+
+  @@index([userEmail, createdAt(sort: Desc)], map: "idx_chat_messages_user_created_at")
+  @@index([exchangeId], map: "idx_chat_messages_exchange_id")
+  @@map("chat_messages")
+}
+
+model ChatExchange {
+  id            BigInt        @id @default(autoincrement())
+  userEmail      String       @map("user_email")
+  userText       String       @map("user_text")
+  assistantText  String       @map("assistant_text")
+  source         String       @default("ai_chat")
+  language       String
+  imageHash      String       @default("") @map("image_hash")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  user           User         @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  messages       ChatMessage[]
+
+  @@index([userEmail, createdAt(sort: Desc)], map: "idx_chat_exchanges_user_created_at")
+  @@map("chat_exchanges")
+}
+
+model ChatPromptCache {
+  id            BigInt    @id @default(autoincrement())
+  userEmail     String    @map("user_email")
+  promptText    String    @map("prompt_text")
+  language      String
+  imageHash     String    @default("") @map("image_hash")
+  assistantText String    @map("assistant_text")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  user          User      @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+
+  @@unique([promptText, language, imageHash], map: "uq_chat_prompt_cache_lookup")
+  @@index([userEmail, updatedAt(sort: Desc)], map: "idx_chat_prompt_cache_user_updated_at")
+  @@index([promptText, language, imageHash], map: "idx_chat_prompt_cache_lookup")
+  @@map("chat_prompt_cache")
+}
+
+model ForumPost {
+  id          BigInt        @id @default(autoincrement())
+  userEmail   String        @map("user_email")
+  subject     String        @default("Untitled")
+  content     String
+  imageBase64 String?       @map("image_base64")
+  imageMimeType String?     @map("image_mime_type")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  user        User          @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  comments    ForumComment[]
+
+  @@index([createdAt(sort: Desc)], map: "idx_forum_posts_created_at")
+  @@map("forum_posts")
+}
+
+model ForumComment {
+  id        BigInt    @id @default(autoincrement())
+  postId    BigInt    @map("post_id")
+  userEmail String    @map("user_email")
+  content   String
+  createdAt DateTime  @default(now()) @map("created_at")
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+
+  @@index([postId, createdAt], map: "idx_forum_comments_post_created_at")
+  @@map("forum_comments")
+}

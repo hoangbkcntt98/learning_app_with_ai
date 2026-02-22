@@ -7,13 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "prisma:generate": "prisma generate",
+    "db:push": "prisma db push",
     "seed:users": "node scripts/seed-users.mjs",
     "seed:questions": "node scripts/seed-questions.mjs"
   },
   "dependencies": {
-    "@types/pg": "^8.16.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.995.0",
+    "@prisma/client": "^6.17.1",
     "next": "16.1.6",
-    "pg": "^8.18.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-spinners": "^0.17.0"
@@ -25,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "prisma": "^6.17.1",
     "tailwindcss": "^4.2.0",
     "typescript": "^5"
   }

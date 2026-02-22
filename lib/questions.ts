@@ -1,4 +1,4 @@
-import { ensureSchema, getPool } from "./db";
+import { prisma } from "./prisma";
 
 export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -10,26 +10,24 @@ export type QuestionRecord = {
   correctIndex: number;
 };
 
-type QuestionRow = {
-  id: number;
-  level: JlptLevel;
-  prompt: string;
-  option_1: string;
-  option_2: string;
-  option_3: string;
-  option_4: string;
-  correct_index: number;
-};
-
 const allowedLevels: JlptLevel[] = ["N5", "N4", "N3", "N2", "N1"];
 
-function mapQuestion(row: QuestionRow): QuestionRecord {
+function mapQuestion(row: {
+  id: number;
+  level: string;
+  prompt: string;
+  option1: string;
+  option2: string;
+  option3: string;
+  option4: string;
+  correctIndex: number;
+}): QuestionRecord {
   return {
     id: row.id,
-    level: row.level,
+    level: row.level as JlptLevel,
     prompt: row.prompt,
-    options: [row.option_1, row.option_2, row.option_3, row.option_4],
-    correctIndex: row.correct_index,
+    options: [row.option1, row.option2, row.option3, row.option4],
+    correctIndex: row.correctIndex,
   };
 }
 
@@ -38,47 +36,32 @@ export function isJlptLevel(value: string): value is JlptLevel {
 }
 
 export async function readQuestions() {
-  await ensureSchema();
-  const pool = getPool();
-  const result = await pool.query<QuestionRow>(
-    `SELECT id, level, prompt, option_1, option_2, option_3, option_4, correct_index
-     FROM questions
-     ORDER BY id ASC`,
-  );
-  return result.rows.map(mapQuestion);
+  const questions = await prisma.question.findMany({
+    orderBy: { id: "asc" },
+  });
+  return questions.map(mapQuestion);
 }
 
 export async function findQuestionById(id: number) {
-  await ensureSchema();
-  const pool = getPool();
-  const result = await pool.query<QuestionRow>(
-    `SELECT id, level, prompt, option_1, option_2, option_3, option_4, correct_index
-     FROM questions
-     WHERE id = $1
-     LIMIT 1`,
-    [id],
-  );
-  return result.rows[0] ? mapQuestion(result.rows[0]) : null;
+  const question = await prisma.question.findUnique({
+    where: { id },
+  });
+  return question ? mapQuestion(question) : null;
 }
 
 export async function createQuestion(params: Omit<QuestionRecord, "id">) {
-  await ensureSchema();
-  const pool = getPool();
-  const result = await pool.query<QuestionRow>(
-    `INSERT INTO questions (level, prompt, option_1, option_2, option_3, option_4, correct_index)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, level, prompt, option_1, option_2, option_3, option_4, correct_index`,
-    [
-      params.level,
-      params.prompt,
-      params.options[0],
-      params.options[1],
-      params.options[2],
-      params.options[3],
-      params.correctIndex,
-    ],
-  );
-  return mapQuestion(result.rows[0]);
+  const created = await prisma.question.create({
+    data: {
+      level: params.level,
+      prompt: params.prompt,
+      option1: params.options[0],
+      option2: params.options[1],
+      option3: params.options[2],
+      option4: params.options[3],
+      correctIndex: params.correctIndex,
+    },
+  });
+  return mapQuestion(created);
 }
 
 export async function updateQuestion(params: {
@@ -88,7 +71,6 @@ export async function updateQuestion(params: {
   options?: [string, string, string, string];
   correctIndex?: number;
 }) {
-  await ensureSchema();
   const current = await findQuestionById(params.id);
   if (!current) {
     return null;
@@ -100,31 +82,20 @@ export async function updateQuestion(params: {
   const nextCorrectIndex =
     typeof params.correctIndex === "number" ? params.correctIndex : current.correctIndex;
 
-  const pool = getPool();
-  const result = await pool.query<QuestionRow>(
-    `UPDATE questions
-     SET level = $2,
-         prompt = $3,
-         option_1 = $4,
-         option_2 = $5,
-         option_3 = $6,
-         option_4 = $7,
-         correct_index = $8
-     WHERE id = $1
-     RETURNING id, level, prompt, option_1, option_2, option_3, option_4, correct_index`,
-    [
-      params.id,
-      nextLevel,
-      nextPrompt,
-      nextOptions[0],
-      nextOptions[1],
-      nextOptions[2],
-      nextOptions[3],
-      nextCorrectIndex,
-    ],
-  );
+  const updated = await prisma.question.update({
+    where: { id: params.id },
+    data: {
+      level: nextLevel,
+      prompt: nextPrompt,
+      option1: nextOptions[0],
+      option2: nextOptions[1],
+      option3: nextOptions[2],
+      option4: nextOptions[3],
+      correctIndex: nextCorrectIndex,
+    },
+  });
 
-  return result.rows[0] ? mapQuestion(result.rows[0]) : null;
+  return mapQuestion(updated);
 }
 
 export function sanitizeQuestion(question: QuestionRecord) {

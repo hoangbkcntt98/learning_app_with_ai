@@ -1,18 +1,9 @@
 import { hashPassword } from "./auth";
-import { ensureSchema, getPool } from "./db";
+import { prisma } from "./prisma";
 
 export type UserRecord = {
   email: string;
   passwordHash: string;
-  name: string;
-  points: number;
-  level: number;
-  role: "admin" | "user";
-};
-
-type UserRow = {
-  email: string;
-  password_hash: string;
   name: string;
   points: number;
   level: number;
@@ -38,40 +29,43 @@ function normalizePoints(value: unknown) {
   return Math.trunc(value);
 }
 
-function mapUser(row: UserRow): UserRecord {
+function mapUser(row: {
+  email: string;
+  passwordHash: string;
+  name: string;
+  points: number;
+  level: number;
+  role: string;
+}): UserRecord {
   return {
     email: row.email,
-    passwordHash: row.password_hash,
+    passwordHash: row.passwordHash,
     name: row.name,
     points: row.points,
     level: row.level,
-    role: row.role,
+    role: row.role === "admin" ? "admin" : "user",
   };
 }
 
 export async function readUsers(): Promise<UserRecord[]> {
-  await ensureSchema();
-  const pool = getPool();
-  const result = await pool.query<UserRow>(
-    `SELECT email, password_hash, name, points, level, role
-     FROM users
-     ORDER BY email ASC`,
-  );
-  return result.rows.map(mapUser);
+  const users = await prisma.user.findMany({
+    orderBy: { email: "asc" },
+  });
+  return users.map(mapUser);
 }
 
 export async function findUserByEmail(email: string) {
-  await ensureSchema();
-  const pool = getPool();
+  if (typeof email !== "string") {
+    return null;
+  }
   const normalizedEmail = email.trim().toLowerCase();
-  const result = await pool.query<UserRow>(
-    `SELECT email, password_hash, name, points, level, role
-     FROM users
-     WHERE email = $1
-     LIMIT 1`,
-    [normalizedEmail],
-  );
-  return result.rows[0] ? mapUser(result.rows[0]) : null;
+  if (!normalizedEmail) {
+    return null;
+  }
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+  return user ? mapUser(user) : null;
 }
 
 export async function createUser(params: {
@@ -81,29 +75,29 @@ export async function createUser(params: {
   role?: "admin" | "user";
   points?: number;
 }) {
-  await ensureSchema();
-  const pool = getPool();
-
   const email = params.email.trim().toLowerCase();
   const points = normalizePoints(params.points);
   const level = calculateLevelFromPoints(points);
   const passwordHash = hashPassword(params.password);
 
   try {
-    const result = await pool.query<UserRow>(
-      `INSERT INTO users (email, password_hash, name, points, level, role)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING email, password_hash, name, points, level, role`,
-      [email, passwordHash, params.name.trim() || email.split("@")[0], points, level, params.role ?? "user"],
-    );
-    return mapUser(result.rows[0]);
+    const created = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name: params.name.trim() || email.split("@")[0],
+        points,
+        level,
+        role: params.role ?? "user",
+      },
+    });
+    return mapUser(created);
   } catch {
     throw new Error("User already exists");
   }
 }
 
 export async function addPointsToUser(email: string, delta: number) {
-  await ensureSchema();
   const current = await findUserByEmail(email);
   if (!current) {
     return null;
@@ -111,17 +105,15 @@ export async function addPointsToUser(email: string, delta: number) {
 
   const nextPoints = current.points + delta;
   const nextLevel = calculateLevelFromPoints(nextPoints);
-  const pool = getPool();
+  const updated = await prisma.user.update({
+    where: { email: current.email },
+    data: {
+      points: nextPoints,
+      level: nextLevel,
+    },
+  });
 
-  const result = await pool.query<UserRow>(
-    `UPDATE users
-     SET points = $2, level = $3
-     WHERE email = $1
-     RETURNING email, password_hash, name, points, level, role`,
-    [current.email, nextPoints, nextLevel],
-  );
-
-  return result.rows[0] ? mapUser(result.rows[0]) : null;
+  return mapUser(updated);
 }
 
 export async function createUserByAdmin(params: {
@@ -147,7 +139,6 @@ export async function updateUserByAdmin(params: {
   role?: "admin" | "user";
   password?: string;
 }) {
-  await ensureSchema();
   const current = await findUserByEmail(params.email);
   if (!current) {
     return null;
@@ -163,20 +154,18 @@ export async function updateUserByAdmin(params: {
     ? hashPassword(params.password)
     : current.passwordHash;
 
-  const pool = getPool();
-  const result = await pool.query<UserRow>(
-    `UPDATE users
-     SET name = $2,
-         points = $3,
-         level = $4,
-         role = $5,
-         password_hash = $6
-     WHERE email = $1
-     RETURNING email, password_hash, name, points, level, role`,
-    [current.email, nextName, nextPoints, nextLevel, nextRole, nextPasswordHash],
-  );
+  const updated = await prisma.user.update({
+    where: { email: current.email },
+    data: {
+      name: nextName,
+      points: nextPoints,
+      level: nextLevel,
+      role: nextRole,
+      passwordHash: nextPasswordHash,
+    },
+  });
 
-  return result.rows[0] ? mapUser(result.rows[0]) : null;
+  return mapUser(updated);
 }
 
 export function sanitizeUser(user: UserRecord) {

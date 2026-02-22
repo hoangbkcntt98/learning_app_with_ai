@@ -34,6 +34,18 @@ export default async function Home() {
             >
               Play game
             </Link>
+            <Link
+              href="/forum"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+            >
+              Forum
+            </Link>
+            <Link
+              href="/ai-chat"
+              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white"
+            >
+              AI Chat
+            </Link>
             {user.role === "admin" ? (
               <Link
                 href="/admin"
