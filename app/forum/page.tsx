@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FeatureAccessWarning } from "@/app/feature-access-warning";
+import { UserSummaryCard } from "@/app/user-summary-card";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { ForumClient } from "./forum-client";
@@ -18,19 +18,18 @@ export default async function ForumPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl px-6 py-8">
-      {/* Show feature-specific top image for forum screen. */}
-      <div className="mb-5 flex justify-center">
-        <Image
-          src="/images/forum.png"
-          alt="Forum feature"
-          width={112}
-          height={112}
-          className="h-28 w-28 rounded-xl object-cover"
-          priority
-        />
-      </div>
+      <UserSummaryCard
+        user={{
+          email: user.email,
+          name: user.name,
+          segment: user.segment,
+          avatarUrl: user.avatarUrl,
+          points: user.points,
+          level: user.level,
+        }}
+      />
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="mt-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Forum</h1>
         <Link href="/" className="text-sm text-blue-700 underline">
           Back to menu

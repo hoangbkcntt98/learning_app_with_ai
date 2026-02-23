@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { FeatureAccessWarning } from "@/app/feature-access-warning";
+import type { UserSummary } from "@/app/user-summary-card";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { GameClient } from "./game-client";
@@ -14,11 +15,21 @@ export default async function PlayPage() {
     return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
 
+  const summaryUser: UserSummary = {
+    email: user.email,
+    name: user.name,
+    segment: user.segment,
+    avatarUrl: user.avatarUrl,
+    points: user.points,
+    level: user.level,
+  };
+
   return (
     <GameClient
       initialPoints={user.points}
       initialLevel={user.level}
       isAdmin={user.role === "admin"}
+      summaryUser={summaryUser}
     />
   );
 }

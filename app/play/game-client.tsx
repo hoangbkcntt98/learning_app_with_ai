@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LoadingPopup } from "../loading-popup";
 import { FeedbackPopup } from "../feedback-popup";
 import { DEFAULT_LANGUAGE, LANGUAGE_OPTIONS, type SupportedLanguage } from "@/lib/language";
+import { type UserSummary, UserSummaryCard } from "../user-summary-card";
 
 type Question = {
   id: number;
@@ -125,10 +126,12 @@ export function GameClient({
   initialPoints,
   initialLevel,
   isAdmin,
+  summaryUser,
 }: {
   initialPoints: number;
   initialLevel: number;
   isAdmin: boolean;
+  summaryUser: UserSummary;
 }) {
   const [fields, setFields] = useState<QuestionField[]>([]);
   const [levels, setLevels] = useState<QuestionLevel[]>([]);
@@ -750,30 +753,21 @@ export function GameClient({
         />
       ) : null}
 
-      {/* Show feature-specific top image for learning screen. */}
-      <Image
-        src="/images/learning.png"
-        alt="Learning feature"
-        width={112}
-        height={112}
-        className="mb-6 h-28 w-28 rounded-xl object-cover"
-        priority
+      <UserSummaryCard
+        user={{
+          ...summaryUser,
+          points,
+          level: userLevel,
+        }}
       />
 
-      <div className="w-full rounded-2xl border border-black/10 p-8 shadow-sm">
+      <div className="mt-6 w-full rounded-2xl border border-black/10 p-8 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold">Learning</h1>
           <Link href="/" className="text-sm text-blue-700 underline">
             Back to menu
           </Link>
         </div>
-
-        <p className="mt-2 text-sm text-black/70">
-          Points: <strong>{points}</strong>
-        </p>
-        <p className="mt-1 text-sm text-black/70">
-          Level: <strong>{userLevel}</strong>
-        </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <label>
