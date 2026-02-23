@@ -1,9 +1,9 @@
 import { prisma } from "./prisma";
 import { sanitizeQuestion, type QuestionRecord } from "./questions";
 
-export type UserQuestionListType = "incorrect" | "review";
+export type UserQuestionListType = "incorrect" | "review" | "dont_show_again";
 
-const allowedListTypes: UserQuestionListType[] = ["incorrect", "review"];
+const allowedListTypes: UserQuestionListType[] = ["incorrect", "review", "dont_show_again"];
 
 function mapListQuestion(question: QuestionRecord) {
   // Keep list payload aligned with normal game-safe question response.
@@ -12,6 +12,7 @@ function mapListQuestion(question: QuestionRecord) {
 
 function mapPrismaQuestionToRecord(question: {
   id: number;
+  questionFieldId: number;
   level: string;
   prompt: string;
   option1: string;
@@ -19,11 +20,17 @@ function mapPrismaQuestionToRecord(question: {
   option3: string;
   option4: string;
   correctIndex: number;
+  questionField?: {
+    id: number;
+    name: string;
+  } | null;
 }): QuestionRecord {
   // Convert Prisma question row shape to app-level question record.
   return {
     id: question.id,
-    level: question.level as QuestionRecord["level"],
+    fieldId: question.questionFieldId,
+    fieldName: question.questionField?.name ?? "JLPT",
+    level: question.level,
     prompt: question.prompt,
     options: [question.option1, question.option2, question.option3, question.option4],
     correctIndex: question.correctIndex,
@@ -72,7 +79,16 @@ export async function listQuestionsFromUserList(
       createdAt: "desc",
     },
     include: {
-      question: true,
+      question: {
+        include: {
+          questionField: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -112,4 +128,22 @@ export async function hasQuestionInUserList(
   });
 
   return Boolean(found);
+}
+
+export async function listQuestionIdsFromUserList(
+  userEmail: string,
+  listType: UserQuestionListType,
+) {
+  // Return only question ids for quick filtering use-cases (e.g., don't-show list).
+  const items = await prisma.userQuestionList.findMany({
+    where: {
+      userEmail,
+      listType,
+    },
+    select: {
+      questionId: true,
+    },
+  });
+
+  return items.map((item) => item.questionId);
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { FeatureAccessWarning } from "@/app/feature-access-warning";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
-import { hasQuestionInUserList, isUserQuestionListType } from "@/lib/question-lists";
+import { hasQuestionInUserList } from "@/lib/question-lists";
 import { getUserQuestionNote } from "@/lib/question-notes";
 import { findQuestionById } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
@@ -39,7 +39,8 @@ export default async function ReviewQuestionDetailPage({
 
   const query = await searchParams;
   const rawListType = String(query.listType ?? "").trim().toLowerCase();
-  const selectedListType = isUserQuestionListType(rawListType) ? rawListType : null;
+  const selectedListType =
+    rawListType === "review" || rawListType === "incorrect" ? rawListType : null;
   const canShowNoteEditor = selectedListType
     ? await hasQuestionInUserList(user.email, question.id, selectedListType)
     : false;

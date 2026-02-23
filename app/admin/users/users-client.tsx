@@ -3,6 +3,7 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LoadingPopup } from "@/app/loading-popup";
+import { ActionResultPopup } from "@/app/action-result-popup";
 
 type User = {
   email: string;
@@ -227,6 +228,15 @@ export function AdminUsersClient() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {loadingMessage ? <LoadingPopup message={loadingMessage} /> : null}
+      <ActionResultPopup
+        isOpen={Boolean(error || status)}
+        message={error || status}
+        tone={error ? "error" : "success"}
+        onClose={() => {
+          setError("");
+          setStatus("");
+        }}
+      />
 
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">User management</h1>
@@ -234,9 +244,6 @@ export function AdminUsersClient() {
           Back to Admin
         </Link>
       </div>
-
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      {status ? <p className="mt-3 text-sm text-green-700">{status}</p> : null}
 
       <section className="mt-6 rounded-xl border border-black/10 p-4">
         <h2 className="text-lg font-semibold">Create user</h2>

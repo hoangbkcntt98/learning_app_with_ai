@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
-import { isJlptLevel, readQuestions, sanitizeQuestion } from "@/lib/questions";
+import { listQuestionIdsFromUserList } from "@/lib/question-lists";
+import { readQuestions, sanitizeQuestion } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
 
 export async function GET(request: Request) {
@@ -14,15 +15,47 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const levelParam = searchParams.get("level");
+  const fieldIdParam = searchParams.get("fieldId");
+  const levelParam = (searchParams.get("level") ?? "").trim();
+  const fieldId =
+    fieldIdParam && Number.isFinite(Number.parseInt(fieldIdParam, 10))
+      ? Number.parseInt(fieldIdParam, 10)
+      : null;
   const questions = await readQuestions();
-  const filtered = levelParam && isJlptLevel(levelParam)
-    ? questions.filter((question) => question.level === levelParam)
-    : questions;
+  const hiddenQuestionIds = new Set(
+    await listQuestionIdsFromUserList(user.email, "dont_show_again"),
+  );
+  const visibleQuestions = questions.filter((question) => !hiddenQuestionIds.has(question.id));
+  const filtered = visibleQuestions.filter((question) => {
+    // Filter by selected field and level when provided.
+    const matchesField = fieldId ? question.fieldId === fieldId : true;
+    const matchesLevel = levelParam ? question.level === levelParam : true;
+    return matchesField && matchesLevel;
+  });
+
+  // Return available field/level options for Learning filter dropdowns.
+  const fields = Array.from(
+    new Map(
+      visibleQuestions.map((question) => [
+        question.fieldId,
+        { id: question.fieldId, name: question.fieldName },
+      ]),
+    ).values(),
+  ).sort((a, b) => a.name.localeCompare(b.name));
+  const levels = Array.from(
+    new Map(
+      visibleQuestions.map((question) => [
+        `${question.fieldId}:${question.level}`,
+        { fieldId: question.fieldId, level: question.level },
+      ]),
+    ).values(),
+  ).sort((a, b) => a.level.localeCompare(b.level));
 
   return NextResponse.json({
     points: user.points,
     level: user.level,
+    fields,
+    levels,
     questions: filtered.map(sanitizeQuestion),
   });
 }

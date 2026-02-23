@@ -3,13 +3,29 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LoadingPopup } from "@/app/loading-popup";
+import { ActionResultPopup } from "@/app/action-result-popup";
 
 type Question = {
   id: number;
-  level: "N5" | "N4" | "N3" | "N2" | "N1";
+  fieldId: number;
+  fieldName: string;
+  level: string;
   prompt: string;
   options: [string, string, string, string];
   correctIndex: number;
+};
+
+type QuestionField = {
+  id: number;
+  key: string;
+  name: string;
+};
+
+type QuestionLevel = {
+  id: number;
+  questionFieldId: number;
+  fieldName: string;
+  name: string;
 };
 
 function ViewIcon() {
@@ -74,8 +90,11 @@ function ActionButton({
 
 export function AdminQuestionsClient() {
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [fields, setFields] = useState<QuestionField[]>([]);
+  const [levels, setLevels] = useState<QuestionLevel[]>([]);
   const [newQuestion, setNewQuestion] = useState({
-    level: "N5" as "N5" | "N4" | "N3" | "N2" | "N1",
+    fieldId: 1,
+    level: "N5",
     prompt: "",
     options: ["", "", "", ""] as [string, string, string, string],
     correctIndex: 0,
@@ -84,36 +103,70 @@ export function AdminQuestionsClient() {
   const [selectedQuestionEdit, setSelectedQuestionEdit] = useState<Question | null>(null);
   const [deleteQuestionId, setDeleteQuestionId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [levelFilter, setLevelFilter] = useState<"all" | "N5" | "N4" | "N3" | "N2" | "N1">("all");
+  const [levelFilter, setLevelFilter] = useState<string>("all");
+  const [fieldFilter, setFieldFilter] = useState<string>("all");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("");
 
   const filteredQuestions = useMemo(() => {
-    // Filter question rows by prompt/id search and JLPT level.
+    // Filter question rows by prompt/id search, field, and level.
     const normalizedSearch = searchTerm.trim().toLowerCase();
     return questions.filter((question) => {
       const matchesLevel = levelFilter === "all" ? true : question.level === levelFilter;
+      const matchesField = fieldFilter === "all" ? true : String(question.fieldId) === fieldFilter;
       const matchesSearch = normalizedSearch
         ? question.prompt.toLowerCase().includes(normalizedSearch) ||
           String(question.id).includes(normalizedSearch)
         : true;
-      return matchesLevel && matchesSearch;
+      return matchesLevel && matchesField && matchesSearch;
     });
-  }, [questions, searchTerm, levelFilter]);
+  }, [questions, searchTerm, levelFilter, fieldFilter]);
+
+  const createFieldLevels = useMemo(
+    () => levels.filter((item) => item.questionFieldId === newQuestion.fieldId),
+    [levels, newQuestion.fieldId],
+  );
+
+  const editFieldLevels = useMemo(
+    () =>
+      selectedQuestionEdit
+        ? levels.filter((item) => item.questionFieldId === selectedQuestionEdit.fieldId)
+        : [],
+    [levels, selectedQuestionEdit],
+  );
 
   useEffect(() => {
     async function loadQuestions() {
       setError("");
       setLoadingMessage("Loading questions...");
       try {
-        const response = await fetch("/api/admin/questions");
-        if (!response.ok) {
+        const [questionResponse, fieldResponse, levelResponse] = await Promise.all([
+          fetch("/api/admin/questions"),
+          fetch("/api/admin/question-fields"),
+          fetch("/api/admin/question-levels"),
+        ]);
+        if (!questionResponse.ok || !fieldResponse.ok || !levelResponse.ok) {
           setError("Failed to load questions.");
           return;
         }
-        const body = (await response.json()) as { questions: Question[] };
-        setQuestions(body.questions ?? []);
+        const questionBody = (await questionResponse.json()) as { questions: Question[] };
+        const fieldBody = (await fieldResponse.json()) as { fields: QuestionField[] };
+        const levelBody = (await levelResponse.json()) as { levels: QuestionLevel[] };
+        const loadedFields = fieldBody.fields ?? [];
+        const loadedLevels = levelBody.levels ?? [];
+        setFields(loadedFields);
+        setLevels(loadedLevels);
+        setQuestions(questionBody.questions ?? []);
+        if (loadedFields.length > 0) {
+          const firstFieldId = loadedFields[0].id;
+          const firstLevel = loadedLevels.find((item) => item.questionFieldId === firstFieldId);
+          setNewQuestion((prev) => ({
+            ...prev,
+            fieldId: firstFieldId,
+            level: firstLevel?.name ?? prev.level,
+          }));
+        }
       } catch {
         setError("Failed to load questions.");
       } finally {
@@ -143,8 +196,11 @@ export function AdminQuestionsClient() {
       const body = (await response.json()) as { question: Question };
       setQuestions((prev) => [...prev, body.question]);
       setStatus("Question created.");
+      const defaultFieldId = fields[0]?.id ?? 1;
+      const defaultLevel = levels.find((item) => item.questionFieldId === defaultFieldId)?.name ?? "";
       setNewQuestion({
-        level: "N5",
+        fieldId: defaultFieldId,
+        level: defaultLevel,
         prompt: "",
         options: ["", "", "", ""],
         correctIndex: 0,
@@ -168,6 +224,7 @@ export function AdminQuestionsClient() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          fieldId: selectedQuestionEdit.fieldId,
           level: selectedQuestionEdit.level,
           prompt: selectedQuestionEdit.prompt,
           options: selectedQuestionEdit.options,
@@ -219,6 +276,15 @@ export function AdminQuestionsClient() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {loadingMessage ? <LoadingPopup message={loadingMessage} /> : null}
+      <ActionResultPopup
+        isOpen={Boolean(error || status)}
+        message={error || status}
+        tone={error ? "error" : "success"}
+        onClose={() => {
+          setError("");
+          setStatus("");
+        }}
+      />
 
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Question management</h1>
@@ -227,30 +293,53 @@ export function AdminQuestionsClient() {
         </Link>
       </div>
 
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      {status ? <p className="mt-3 text-sm text-green-700">{status}</p> : null}
-
       <section className="mt-6 rounded-xl border border-black/10 p-4">
         <h2 className="text-lg font-semibold">Create question</h2>
         <form onSubmit={createQuestion} className="mt-3 space-y-3">
           <div className="grid gap-3 md:grid-cols-4">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-black/70">JLPT level</span>
+              <span className="mb-1 block text-xs font-medium text-black/70">Question field</span>
               <select
+                value={newQuestion.fieldId}
+                onChange={(event) =>
+                  setNewQuestion((prev) => {
+                    const nextFieldId = Number.parseInt(event.target.value || "1", 10);
+                    const nextLevel =
+                      levels.find((item) => item.questionFieldId === nextFieldId)?.name ?? "";
+                    return {
+                      ...prev,
+                      fieldId: nextFieldId,
+                      level: nextLevel,
+                    };
+                  })
+                }
+                className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+              >
+                {fields.map((field) => (
+                  <option key={field.id} value={field.id}>
+                    {field.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-black/70">Level</span>
+              <select
+                required
                 value={newQuestion.level}
                 onChange={(event) =>
                   setNewQuestion((prev) => ({
                     ...prev,
-                    level: event.target.value as "N5" | "N4" | "N3" | "N2" | "N1",
+                    level: event.target.value,
                   }))
                 }
                 className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
               >
-                <option value="N5">N5</option>
-                <option value="N4">N4</option>
-                <option value="N3">N3</option>
-                <option value="N2">N2</option>
-                <option value="N1">N1</option>
+                {createFieldLevels.map((item) => (
+                  <option key={item.id} value={item.name}>
+                    {item.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block">
@@ -320,20 +409,39 @@ export function AdminQuestionsClient() {
             />
           </label>
           <label className="block max-w-xs">
-            <span className="mb-1 block text-xs font-medium text-black/70">JLPT filter</span>
+            <span className="mb-1 block text-xs font-medium text-black/70">Field filter</span>
+            <select
+              value={fieldFilter}
+              onChange={(event) => setFieldFilter(event.target.value)}
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            >
+              <option value="all">All fields</option>
+              {fields.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Level filter</span>
             <select
               value={levelFilter}
-              onChange={(event) =>
-                setLevelFilter(event.target.value as "all" | "N5" | "N4" | "N3" | "N2" | "N1")
-              }
+              onChange={(event) => setLevelFilter(event.target.value)}
               className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
             >
               <option value="all">All levels</option>
-              <option value="N5">N5</option>
-              <option value="N4">N4</option>
-              <option value="N3">N3</option>
-              <option value="N2">N2</option>
-              <option value="N1">N1</option>
+              {Array.from(
+                new Set(
+                  levels
+                    .filter((item) => (fieldFilter === "all" ? true : String(item.questionFieldId) === fieldFilter))
+                    .map((item) => item.name),
+                ),
+              ).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -342,7 +450,8 @@ export function AdminQuestionsClient() {
             <thead className="bg-black/[0.04]">
               <tr>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">ID</th>
-                <th className="border-b border-black/10 px-3 py-2 font-semibold">JLPT</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Field</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Level</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Question</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Answer 1</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Answer 2</th>
@@ -356,6 +465,7 @@ export function AdminQuestionsClient() {
               {filteredQuestions.map((question) => (
                 <tr key={question.id}>
                   <td className="border-b border-black/10 px-3 py-2">{question.id}</td>
+                  <td className="border-b border-black/10 px-3 py-2">{question.fieldName}</td>
                   <td className="border-b border-black/10 px-3 py-2">{question.level}</td>
                   <td className="border-b border-black/10 px-3 py-2">{question.prompt}</td>
                   <td className="border-b border-black/10 px-3 py-2">{question.options[0]}</td>
@@ -376,7 +486,7 @@ export function AdminQuestionsClient() {
               ))}
               {filteredQuestions.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-sm text-black/60" colSpan={9}>
+                  <td className="px-3 py-3 text-sm text-black/60" colSpan={10}>
                     No questions found for current search/filter.
                   </td>
                 </tr>
@@ -392,7 +502,8 @@ export function AdminQuestionsClient() {
             {/* Show question details in a read-only popup. */}
             <p className="text-base font-semibold">Question detail</p>
             <p className="text-sm">ID: {selectedQuestionView.id}</p>
-            <p className="text-sm">JLPT: {selectedQuestionView.level}</p>
+            <p className="text-sm">Field: {selectedQuestionView.fieldName}</p>
+            <p className="text-sm">Level: {selectedQuestionView.level}</p>
             <p className="text-sm">Question: {selectedQuestionView.prompt}</p>
             <p className="text-sm">A. {selectedQuestionView.options[0]}</p>
             <p className="text-sm">B. {selectedQuestionView.options[1]}</p>
@@ -416,21 +527,42 @@ export function AdminQuestionsClient() {
             {/* Edit selected question fields before saving changes. */}
             <p className="text-base font-semibold">Edit question</p>
             <select
-              value={selectedQuestionEdit.level}
+              value={selectedQuestionEdit.fieldId}
               onChange={(event) =>
                 setSelectedQuestionEdit((prev) =>
                   prev
-                    ? { ...prev, level: event.target.value as "N5" | "N4" | "N3" | "N2" | "N1" }
+                    ? {
+                        ...prev,
+                        fieldId: Number.parseInt(event.target.value || "1", 10),
+                        level:
+                          levels.find(
+                            (item) =>
+                              item.questionFieldId === Number.parseInt(event.target.value || "1", 10),
+                          )?.name ?? "",
+                      }
                     : prev,
                 )
               }
               className="w-full rounded border border-black/20 px-2 py-1 text-sm"
             >
-              <option value="N5">N5</option>
-              <option value="N4">N4</option>
-              <option value="N3">N3</option>
-              <option value="N2">N2</option>
-              <option value="N1">N1</option>
+              {fields.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedQuestionEdit.level}
+              onChange={(event) =>
+                setSelectedQuestionEdit((prev) => (prev ? { ...prev, level: event.target.value } : prev))
+              }
+              className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+            >
+              {editFieldLevels.map((item) => (
+                <option key={item.id} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
             </select>
             <input
               value={selectedQuestionEdit.prompt}

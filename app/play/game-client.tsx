@@ -7,13 +7,23 @@ import { LoadingPopup } from "../loading-popup";
 import { FeedbackPopup } from "../feedback-popup";
 import { DEFAULT_LANGUAGE, LANGUAGE_OPTIONS, type SupportedLanguage } from "@/lib/language";
 
-type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
-
 type Question = {
   id: number;
-  level: JlptLevel;
+  fieldId: number;
+  fieldName: string;
+  level: string;
   prompt: string;
   options: [string, string, string, string];
+};
+
+type QuestionField = {
+  id: number;
+  name: string;
+};
+
+type QuestionLevel = {
+  fieldId: number;
+  level: string;
 };
 
 type AnswerResult = {
@@ -24,7 +34,6 @@ type AnswerResult = {
   delta: number;
 };
 
-const levels: JlptLevel[] = ["N5", "N4", "N3", "N2", "N1"];
 const optionLabels = ["A", "B", "C", "D"] as const;
 type ExplanationSession = {
   prompt: string;
@@ -39,7 +48,10 @@ export function GameClient({
   initialPoints: number;
   initialLevel: number;
 }) {
-  const [level, setLevel] = useState<JlptLevel>("N5");
+  const [fields, setFields] = useState<QuestionField[]>([]);
+  const [levels, setLevels] = useState<QuestionLevel[]>([]);
+  const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -56,6 +68,9 @@ export function GameClient({
   const [reviewListStatus, setReviewListStatus] = useState("");
   const [reviewListError, setReviewListError] = useState("");
   const [isSavingReviewList, setIsSavingReviewList] = useState(false);
+  const [dontShowStatus, setDontShowStatus] = useState("");
+  const [dontShowError, setDontShowError] = useState("");
+  const [isSavingDontShow, setIsSavingDontShow] = useState(false);
   const [explanationLanguage, setExplanationLanguage] = useState<SupportedLanguage>(
     DEFAULT_LANGUAGE,
   );
@@ -72,6 +87,13 @@ export function GameClient({
     () => questions[currentIndex] ?? null,
     [questions, currentIndex],
   );
+  const selectableLevels = useMemo(
+    () =>
+      levels.filter((item) =>
+        selectedFieldId === null ? true : item.fieldId === selectedFieldId,
+      ),
+    [levels, selectedFieldId],
+  );
 
   useEffect(() => {
     async function loadQuestions() {
@@ -84,13 +106,22 @@ export function GameClient({
       setExplanationError("");
       setReviewListStatus("");
       setReviewListError("");
+      setDontShowStatus("");
+      setDontShowError("");
       setExplanationLanguage(DEFAULT_LANGUAGE);
       setExplanationsByQuestionLanguage({});
       setCachedResponsesByQuestionLanguage({});
       setCachedResponseIndexByQuestionLanguage({});
 
       try {
-        const response = await fetch(`/api/game/questions?level=${level}`);
+        const params = new URLSearchParams();
+        if (selectedFieldId !== null) {
+          params.set("fieldId", String(selectedFieldId));
+        }
+        if (selectedLevel) {
+          params.set("level", selectedLevel);
+        }
+        const response = await fetch(`/api/game/questions?${params.toString()}`);
         if (!response.ok) {
           const body = (await response.json()) as { error?: string };
           setError(body.error ?? "Could not load questions.");
@@ -100,12 +131,28 @@ export function GameClient({
 
         const body = (await response.json()) as {
           questions: Question[];
+          fields: QuestionField[];
+          levels: QuestionLevel[];
           points: number;
           level: number;
         };
+        const nextFields = body.fields ?? [];
+        const nextLevels = body.levels ?? [];
+        setFields(nextFields);
+        setLevels(nextLevels);
         setQuestions(body.questions ?? []);
         setPoints(body.points ?? initialPoints);
         setUserLevel(body.level ?? initialLevel);
+        if (nextFields.length > 0 && selectedFieldId === null) {
+          setSelectedFieldId(nextFields[0].id);
+        }
+        if (!selectedLevel) {
+          const initialSelectableLevel =
+            nextLevels.find((item) =>
+              selectedFieldId === null ? true : item.fieldId === selectedFieldId,
+            )?.level ?? "";
+          setSelectedLevel(initialSelectableLevel);
+        }
       } catch {
         setError("Failed to load questions.");
         setQuestions([]);
@@ -115,7 +162,7 @@ export function GameClient({
     }
 
     loadQuestions();
-  }, [level, initialLevel, initialPoints]);
+  }, [selectedFieldId, selectedLevel, initialLevel, initialPoints]);
 
   async function submitAnswer(selectedIndex: number) {
     if (!currentQuestion || answerResult || isSubmittingAnswer) {
@@ -164,6 +211,8 @@ export function GameClient({
     setExplanationError("");
     setReviewListStatus("");
     setReviewListError("");
+    setDontShowStatus("");
+    setDontShowError("");
     setExplanationLanguage(DEFAULT_LANGUAGE);
     setExplanationsByQuestionLanguage({});
     setCachedResponsesByQuestionLanguage({});
@@ -244,6 +293,40 @@ export function GameClient({
       setReviewListError("Failed to add to review list.");
     } finally {
       setIsSavingReviewList(false);
+    }
+  }
+
+  async function addCurrentQuestionToDontShowList() {
+    if (!currentQuestion || isSavingDontShow) {
+      return;
+    }
+
+    setDontShowStatus("");
+    setDontShowError("");
+    setIsSavingDontShow(true);
+    try {
+      const response = await fetch("/api/game/lists", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          questionId: currentQuestion.id,
+          type: "dont_show_again",
+        }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setDontShowError(body.error ?? "Could not add to don't show list.");
+        return;
+      }
+
+      setDontShowStatus("Added to don't show list.");
+    } catch {
+      setDontShowError("Failed to add to don't show list.");
+    } finally {
+      setIsSavingDontShow(false);
     }
   }
 
@@ -421,25 +504,47 @@ export function GameClient({
           Level: <strong>{userLevel}</strong>
         </p>
 
-        <div className="mt-5">
-          <label className="text-sm font-medium">JLPT level</label>
-          <select
-            className="mt-1 w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-            value={level}
-            onChange={(event) => setLevel(event.target.value as JlptLevel)}
-          >
-            {levels.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <label>
+            <span className="text-sm font-medium">Field</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+              value={selectedFieldId ?? ""}
+              onChange={(event) => {
+                const nextFieldId = Number.parseInt(event.target.value || "0", 10);
+                setSelectedFieldId(Number.isFinite(nextFieldId) && nextFieldId > 0 ? nextFieldId : null);
+                const nextLevel =
+                  levels.find((item) => item.fieldId === nextFieldId)?.level ?? "";
+                setSelectedLevel(nextLevel);
+              }}
+            >
+              {fields.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="text-sm font-medium">Level</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+              value={selectedLevel}
+              onChange={(event) => setSelectedLevel(event.target.value)}
+            >
+              {selectableLevels.map((item) => (
+                <option key={`${item.fieldId}:${item.level}`} value={item.level}>
+                  {item.level}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
         {!isLoadingQuestions && !currentQuestion ? (
           <p className="mt-6 text-sm text-black/70">
-            No questions found for {level}. Run the seed script to add data.
+            No questions found for the selected field and level.
           </p>
         ) : null}
 
@@ -506,13 +611,23 @@ export function GameClient({
               >
                 {isSavingReviewList ? "Saving..." : "+Review List"}
               </button>
+              <button
+                type="button"
+                onClick={addCurrentQuestionToDontShowList}
+                disabled={isSavingDontShow || !currentQuestion}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-50"
+              >
+                {isSavingDontShow ? "Saving..." : "Don't Show Again"}
+              </button>
             </div>
             {reviewListStatus ? <p className="mt-2 text-sm text-green-700">{reviewListStatus}</p> : null}
             {reviewListError ? <p className="mt-2 text-sm text-red-600">{reviewListError}</p> : null}
+            {dontShowStatus ? <p className="mt-2 text-sm text-green-700">{dontShowStatus}</p> : null}
+            {dontShowError ? <p className="mt-2 text-sm text-red-600">{dontShowError}</p> : null}
 
             {answerResult && isLastQuestion ? (
               <p className="mt-3 text-sm text-black/70">
-                You reached the end of {level} questions.
+                You reached the end of {selectedLevel || "selected"} questions.
               </p>
             ) : null}
 

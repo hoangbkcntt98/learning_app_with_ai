@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { LoadingPopup } from "../loading-popup";
+import { ActionResultPopup } from "../action-result-popup";
 
 type AppSettings = {
   maxRegisteredUsers: number;
@@ -330,6 +331,15 @@ export function AdminClient() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {loadingMessage ? <LoadingPopup message={loadingMessage} /> : null}
+      <ActionResultPopup
+        isOpen={Boolean(error || status)}
+        message={error || status}
+        tone={error ? "error" : "success"}
+        onClose={() => {
+          setError("");
+          setStatus("");
+        }}
+      />
 
       {/* Show feature-specific top image for admin screen. */}
       <div className="mb-5 flex justify-center">
@@ -349,9 +359,6 @@ export function AdminClient() {
           Back to menu
         </Link>
       </div>
-
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      {status ? <p className="mt-3 text-sm text-green-700">{status}</p> : null}
 
       <section className="mt-6 rounded-xl border border-black/10 p-4">
         <h2 className="text-lg font-semibold">Settings</h2>
@@ -758,6 +765,18 @@ export function AdminClient() {
             className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
           >
             Question management
+          </Link>
+          <Link
+            href="/admin/question-fields"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white sm:col-span-2"
+          >
+            Question Field Management
+          </Link>
+          <Link
+            href="/admin/question-levels"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white sm:col-span-2"
+          >
+            Question Level Management
           </Link>
         </div>
       </section>

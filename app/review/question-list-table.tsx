@@ -7,6 +7,8 @@ type ListType = "incorrect" | "review";
 
 type ListQuestion = {
   id: number;
+  fieldId: number;
+  fieldName: string;
   level: string;
   prompt: string;
   options: [string, string, string, string];
@@ -70,9 +72,38 @@ export function QuestionListTable({
   listType: ListType;
 }) {
   const [items, setItems] = useState(questions);
+  const [fieldFilter, setFieldFilter] = useState("all");
+  const [levelFilter, setLevelFilter] = useState("all");
   const [error, setError] = useState("");
   const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+
+  const fieldOptions = useMemo(() => {
+    // Build field dropdown options from current list items.
+    return Array.from(
+      new Map(items.map((item) => [item.fieldId, { id: item.fieldId, name: item.fieldName }])).values(),
+    ).sort((a, b) => a.name.localeCompare(b.name));
+  }, [items]);
+
+  const levelOptions = useMemo(() => {
+    // Build level dropdown options, scoped by selected field when present.
+    return Array.from(
+      new Set(
+        items
+          .filter((item) => (fieldFilter === "all" ? true : String(item.fieldId) === fieldFilter))
+          .map((item) => item.level),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [items, fieldFilter]);
+
+  const filteredItems = useMemo(() => {
+    // Apply field and level filters before rendering rows.
+    return items.filter((item) => {
+      const matchesField = fieldFilter === "all" ? true : String(item.fieldId) === fieldFilter;
+      const matchesLevel = levelFilter === "all" ? true : item.level === levelFilter;
+      return matchesField && matchesLevel;
+    });
+  }, [items, fieldFilter, levelFilter]);
 
   const pendingDeleteQuestion = useMemo(
     () => items.find((item) => item.id === pendingDeleteId) ?? null,
@@ -134,8 +165,44 @@ export function QuestionListTable({
 
       <p className="mt-2 text-sm text-black/70">{description}</p>
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-black/70">Field</span>
+          <select
+            value={fieldFilter}
+            onChange={(event) => {
+              // Reset level when field changes so invalid old level is not kept.
+              setFieldFilter(event.target.value);
+              setLevelFilter("all");
+            }}
+            className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+          >
+            <option value="all">All fields</option>
+            {fieldOptions.map((field) => (
+              <option key={field.id} value={field.id}>
+                {field.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-black/70">Level</span>
+          <select
+            value={levelFilter}
+            onChange={(event) => setLevelFilter(event.target.value)}
+            className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+          >
+            <option value="all">All levels</option>
+            {levelOptions.map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <div className="mt-6 rounded-xl border border-black/10 p-4 text-sm text-black/70">
           No questions yet.
         </div>
@@ -146,15 +213,17 @@ export function QuestionListTable({
             <thead className="bg-black/[0.04]">
               <tr>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">#</th>
-                <th className="border-b border-black/10 px-3 py-2 font-semibold">JLPT</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Field</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Level</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Question</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Action</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((question, index) => (
+              {filteredItems.map((question, index) => (
                 <tr key={`${question.id}-${index}`} className="align-top">
                   <td className="border-b border-black/10 px-3 py-2">{index + 1}</td>
+                  <td className="border-b border-black/10 px-3 py-2">{question.fieldName}</td>
                   <td className="border-b border-black/10 px-3 py-2">{question.level}</td>
                   <td className="border-b border-black/10 px-3 py-2">{question.prompt}</td>
                   <td className="border-b border-black/10 px-3 py-2">

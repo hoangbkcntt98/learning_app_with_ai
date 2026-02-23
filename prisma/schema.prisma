@@ -32,6 +32,7 @@ model User {
 
 model Question {
   id           Int      @id @default(autoincrement())
+  questionFieldId Int   @default(1) @map("question_field_id")
   level        String
   prompt       String
   option1      String   @map("option_1")
@@ -40,10 +41,36 @@ model Question {
   option4      String   @map("option_4")
   correctIndex Int      @map("correct_index")
   createdAt    DateTime @default(now()) @map("created_at")
+  questionField QuestionField @relation(fields: [questionFieldId], references: [id], onDelete: Restrict)
   userLists    UserQuestionList[]
   userNotes    UserQuestionNote[]
 
   @@map("questions")
+}
+
+model QuestionField {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  questions Question[]
+  questionLevels QuestionLevel[]
+
+  @@map("question_fields")
+}
+
+model QuestionLevel {
+  id              Int      @id @default(autoincrement())
+  questionFieldId Int      @map("question_field_id")
+  name            String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  questionField   QuestionField @relation(fields: [questionFieldId], references: [id], onDelete: Cascade)
+
+  @@unique([questionFieldId, name], map: "uq_question_level_field_name")
+  @@index([questionFieldId], map: "idx_question_level_field_id")
+  @@map("question_levels")
 }
 
 model ChatMessage {

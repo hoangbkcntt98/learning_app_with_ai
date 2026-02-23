@@ -9,21 +9,36 @@ import {
 } from "@/lib/question-lists";
 import { findQuestionById } from "@/lib/questions";
 
+async function ensureListAccess(
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+  listType: string,
+) {
+  // Restrict list operations by feature: review lists use Review, hidden list uses Learning.
+  if (listType === "dont_show_again") {
+    return checkUserFeatureAccess(user, "learning");
+  }
+  return checkUserFeatureAccess(user, "review");
+}
+
 export async function GET(request: Request) {
-  // Return saved question list for current user (incorrect or review).
+  // Return saved question list for current user.
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-  const access = await checkUserFeatureAccess(user, "review");
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const listTypeRaw = (searchParams.get("type") ?? "").trim().toLowerCase();
   if (!isUserQuestionListType(listTypeRaw)) {
-    return NextResponse.json({ error: "type must be incorrect or review." }, { status: 400 });
+    return NextResponse.json(
+      { error: "type must be incorrect, review, or dont_show_again." },
+      { status: 400 },
+    );
+  }
+
+  const access = await ensureListAccess(user, listTypeRaw);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const questions = await listQuestionsFromUserList(user.email, listTypeRaw);
@@ -35,10 +50,6 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-  const access = await checkUserFeatureAccess(user, "review");
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const body = (await request.json()) as {
@@ -56,7 +67,15 @@ export async function POST(request: Request) {
 
   const listTypeRaw = String(body.type ?? "").trim().toLowerCase();
   if (!isUserQuestionListType(listTypeRaw)) {
-    return NextResponse.json({ error: "type must be incorrect or review." }, { status: 400 });
+    return NextResponse.json(
+      { error: "type must be incorrect, review, or dont_show_again." },
+      { status: 400 },
+    );
+  }
+
+  const access = await ensureListAccess(user, listTypeRaw);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const question = await findQuestionById(questionId);
@@ -74,10 +93,6 @@ export async function DELETE(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
-  const access = await checkUserFeatureAccess(user, "review");
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.message }, { status: 403 });
-  }
 
   const body = (await request.json()) as {
     questionId?: number;
@@ -94,7 +109,15 @@ export async function DELETE(request: Request) {
 
   const listTypeRaw = String(body.type ?? "").trim().toLowerCase();
   if (!isUserQuestionListType(listTypeRaw)) {
-    return NextResponse.json({ error: "type must be incorrect or review." }, { status: 400 });
+    return NextResponse.json(
+      { error: "type must be incorrect, review, or dont_show_again." },
+      { status: 400 },
+    );
+  }
+
+  const access = await ensureListAccess(user, listTypeRaw);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   await removeQuestionFromUserList(user.email, questionId, listTypeRaw);

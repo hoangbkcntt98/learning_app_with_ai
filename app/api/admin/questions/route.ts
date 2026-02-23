@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import {
   createQuestion,
-  isJlptLevel,
   readQuestions,
   sanitizeQuestionForAdmin,
 } from "@/lib/questions";
+import { findQuestionFieldById } from "@/lib/question-fields";
+import { hasQuestionLevelInField } from "@/lib/question-levels";
 import { getCurrentAdminUser } from "@/lib/session";
 
 export async function GET() {
@@ -24,20 +25,26 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as {
+    fieldId?: number;
     level?: string;
     prompt?: string;
     options?: string[];
     correctIndex?: number;
   };
 
+  const fieldId = typeof body.fieldId === "number" ? Math.trunc(body.fieldId) : 0;
   const level = body.level?.trim() ?? "";
   const prompt = body.prompt?.trim() ?? "";
   const options = Array.isArray(body.options) ? body.options.map((item) => item.trim()) : [];
   const correctIndex = body.correctIndex;
 
-  if (!isJlptLevel(level) || !prompt || options.length !== 4) {
+  if (!Number.isFinite(fieldId) || fieldId < 1) {
+    return NextResponse.json({ error: "fieldId is required." }, { status: 400 });
+  }
+
+  if (!level || !prompt || options.length !== 4) {
     return NextResponse.json(
-      { error: "level, prompt and exactly 4 options are required." },
+      { error: "fieldId, level, prompt and exactly 4 options are required." },
       { status: 400 },
     );
   }
@@ -46,8 +53,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "correctIndex must be 0..3." }, { status: 400 });
   }
 
+  const field = await findQuestionFieldById(fieldId);
+  if (!field) {
+    return NextResponse.json({ error: "Question field not found." }, { status: 400 });
+  }
+  const hasLevel = await hasQuestionLevelInField(fieldId, level);
+  if (!hasLevel) {
+    return NextResponse.json(
+      { error: "Selected level is not configured for this question field." },
+      { status: 400 },
+    );
+  }
+
   try {
     const created = await createQuestion({
+      fieldId,
       level,
       prompt,
       options: [options[0], options[1], options[2], options[3]],
