@@ -31,6 +31,8 @@ export async function PATCH(request: Request) {
     featureName?: string;
     routePath?: string;
     minLevel?: number;
+    allowUser?: boolean;
+    allowAdmin?: boolean;
     allowFree?: boolean;
     allowPlus?: boolean;
     allowPro?: boolean;
@@ -55,6 +57,8 @@ export async function PATCH(request: Request) {
       featureName: body.featureName,
       routePath: body.routePath,
       minLevel: body.minLevel,
+      allowUser: body.allowUser,
+      allowAdmin: body.allowAdmin,
       allowFree: body.allowFree,
       allowPlus: body.allowPlus,
       allowPro: body.allowPro,
@@ -82,6 +86,8 @@ export async function POST(request: Request) {
     featureName?: string;
     routePath?: string;
     minLevel?: number;
+    allowUser?: boolean;
+    allowAdmin?: boolean;
     allowFree?: boolean;
     allowPlus?: boolean;
     allowPro?: boolean;
@@ -110,6 +116,8 @@ export async function POST(request: Request) {
       featureName,
       routePath,
       minLevel: body.minLevel,
+      allowUser: body.allowUser,
+      allowAdmin: body.allowAdmin,
       allowFree: body.allowFree,
       allowPlus: body.allowPlus,
       allowPro: body.allowPro,

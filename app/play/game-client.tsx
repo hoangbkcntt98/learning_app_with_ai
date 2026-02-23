@@ -267,7 +267,7 @@ export function GameClient({
     if (!cachedResponses) {
       setIsLoadingExplanation(true);
       try {
-        const cachedResponse = await fetch("/api/ai/chat/cached", {
+        const cachedResponse = await fetch("/api/ai/ask/cached", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -275,7 +275,6 @@ export function GameClient({
           body: JSON.stringify({
             prompt,
             language: explanationLanguage,
-            source: "explain",
           }),
         });
 
@@ -319,7 +318,7 @@ export function GameClient({
 
     setIsLoadingExplanation(true);
     try {
-      const response = await fetch("/api/ai/chat", {
+      const response = await fetch("/api/ai/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -328,7 +327,6 @@ export function GameClient({
           prompt,
           language: explanationLanguage,
           forceModel: true,
-          source: "explain",
         }),
       });
 

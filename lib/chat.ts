@@ -43,7 +43,7 @@ export function sanitizeChatMessage(message: ChatMessageRecord) {
 
 export async function findCachedAssistantResponse(params: {
   promptText: string;
-  source: "ai_chat" | "explain";
+  source: "ai_chat" | "ai_ask" | "explain";
   language: string;
   imageHash: string;
 }) {
@@ -63,7 +63,7 @@ export async function findCachedAssistantResponse(params: {
 export async function upsertChatPromptCache(params: {
   userEmail: string;
   promptText: string;
-  source: "ai_chat" | "explain";
+  source: "ai_chat" | "ai_ask" | "explain";
   language: string;
   imageHash: string;
   assistantText: string;
@@ -92,15 +92,19 @@ export async function upsertChatPromptCache(params: {
 
 export async function listCachedAssistantResponses(params: {
   promptText: string;
-  source: "ai_chat" | "explain";
+  source: "ai_chat" | "ai_ask" | "explain";
   language: string;
   imageHash: string;
 }) {
   // Return all historical assistant answers for the exact prompt context.
+  const sourceFilter =
+    params.source === "ai_ask"
+      ? { in: ["ai_ask", "explain"] }
+      : params.source;
   const exchanges = await prisma.chatExchange.findMany({
     where: {
       userText: params.promptText,
-      source: params.source,
+      source: sourceFilter,
       language: params.language,
       imageHash: params.imageHash,
     },
@@ -118,7 +122,7 @@ export async function listCachedAssistantResponses(params: {
 export async function listChatMessagesByUser(
   userEmail: string,
   limit = 50,
-  source?: "ai_chat" | "explain",
+  source?: "ai_chat" | "ai_ask" | "explain",
 ) {
   // Load chat timeline for a user; optionally scope to a feature source.
   const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.trunc(limit))) : 50;
@@ -146,7 +150,7 @@ export async function createChatExchange(params: {
   userEmail: string;
   userText: string;
   assistantText: string;
-  source: "ai_chat" | "explain";
+  source: "ai_chat" | "ai_ask" | "explain";
   language: string;
   imageHash?: string;
 }) {

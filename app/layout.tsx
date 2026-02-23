@@ -55,27 +55,48 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {user ? (
-          <header className="sticky top-0 z-40 w-full border-b border-black/10 bg-white/90 px-4 py-2 backdrop-blur dark:bg-neutral-900/90">
-            <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
-              {/* Keep brand logo at the left side like a top app menu bar. */}
-              <Link href="/" className="inline-flex items-center gap-2">
-                <Image
-                  src="/images/logo.png"
-                  alt="BuBu Learning logo"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 rounded-lg object-cover"
-                  priority
-                />
-                <span className="text-sm font-semibold">BuBu Learning</span>
-              </Link>
-              <LogoutButton />
+        <div className="flex min-h-screen flex-col">
+          {user ? (
+            <header className="sticky top-0 z-40 w-full border-b border-black/10 bg-white/90 px-4 py-2 backdrop-blur dark:bg-neutral-900/90">
+              <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+                {/* Keep brand logo at the left side like a top app menu bar. */}
+                <Link href="/" className="inline-flex items-center gap-2">
+                  <Image
+                    src="/images/logo.png"
+                    alt="BuBu Learning logo"
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 rounded-lg object-cover"
+                    priority
+                  />
+                  <span className="text-sm font-semibold">BuBu Learning</span>
+                </Link>
+                <LogoutButton />
+              </div>
+            </header>
+          ) : null}
+          <ThemeToggle />
+          <div className="flex-1">{children}</div>
+          {/* Shared footer links improve navigation and product trust cues. */}
+          <footer className="border-t border-black/10 bg-white/80 px-4 py-4 text-sm dark:bg-neutral-900/80">
+            <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-2 sm:flex-row">
+              <p className="text-black/70 dark:text-white/80">
+                Copyright {new Date().getFullYear()} HoangBK. All rights reserved.
+              </p>
+              <nav className="flex items-center gap-4">
+                <Link href="/about" className="text-blue-700 underline">
+                  About
+                </Link>
+                <Link href="/contact" className="text-blue-700 underline">
+                  Contact
+                </Link>
+                <Link href="/donate" className="text-blue-700 underline">
+                  Donate
+                </Link>
+              </nav>
             </div>
-          </header>
-        ) : null}
-        <ThemeToggle />
-        {children}
+          </footer>
+        </div>
       </body>
     </html>
   );

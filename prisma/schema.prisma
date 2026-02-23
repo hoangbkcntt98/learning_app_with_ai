@@ -185,6 +185,8 @@ model FeatureAccessRule {
   featureName    String   @map("feature_name")
   routePath      String   @map("route_path")
   minLevel       Int      @default(0) @map("min_level")
+  allowUser      Boolean  @default(true) @map("allow_user")
+  allowAdmin     Boolean  @default(false) @map("allow_admin")
   allowFree      Boolean  @default(true) @map("allow_free")
   allowPlus      Boolean  @default(true) @map("allow_plus")
   allowPro       Boolean  @default(true) @map("allow_pro")

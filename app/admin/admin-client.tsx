@@ -16,6 +16,8 @@ type FeatureAccessRule = {
   featureName: string;
   routePath: string;
   minLevel: number;
+  allowUser: boolean;
+  allowAdmin: boolean;
   allowFree: boolean;
   allowPlus: boolean;
   allowPro: boolean;
@@ -27,6 +29,8 @@ type FeatureFormDraft = {
   featureKey: string;
   routePath: string;
   minLevel: string;
+  allowUser: boolean;
+  allowAdmin: boolean;
   allowFree: boolean;
   allowPlus: boolean;
   allowPro: boolean;
@@ -45,6 +49,8 @@ export function AdminClient() {
     featureKey: "",
     routePath: "",
     minLevel: "0",
+    allowUser: true,
+    allowAdmin: false,
     allowFree: true,
     allowPlus: true,
     allowPro: true,
@@ -189,6 +195,8 @@ export function AdminClient() {
           featureName: selectedFeatureRule.featureName,
           routePath: selectedFeatureRule.routePath,
           minLevel: selectedFeatureRule.minLevel,
+          allowUser: selectedFeatureRule.allowUser,
+          allowAdmin: selectedFeatureRule.allowAdmin,
           allowFree: selectedFeatureRule.allowFree,
           allowPlus: selectedFeatureRule.allowPlus,
           allowPro: selectedFeatureRule.allowPro,
@@ -243,6 +251,8 @@ export function AdminClient() {
           featureKey: newFeatureDraft.featureKey.trim(),
           routePath: newFeatureDraft.routePath.trim(),
           minLevel,
+          allowUser: newFeatureDraft.allowUser,
+          allowAdmin: newFeatureDraft.allowAdmin,
           allowFree: newFeatureDraft.allowFree,
           allowPlus: newFeatureDraft.allowPlus,
           allowPro: newFeatureDraft.allowPro,
@@ -266,6 +276,8 @@ export function AdminClient() {
         featureKey: "",
         routePath: "",
         minLevel: "0",
+        allowUser: true,
+        allowAdmin: false,
         allowFree: true,
         allowPlus: true,
         allowPro: true,
@@ -460,6 +472,36 @@ export function AdminClient() {
           </label>
 
           <div className="md:col-span-2">
+            <p className="mb-2 text-xs font-medium text-black/70">Allowed roles</p>
+            <div className="grid grid-cols-2 gap-2 md:max-w-md">
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedFeatureRule?.allowUser ?? false}
+                  onChange={(event) =>
+                    setSelectedFeatureRule((prev) =>
+                      prev ? { ...prev, allowUser: event.target.checked } : prev,
+                    )
+                  }
+                />
+                User
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedFeatureRule?.allowAdmin ?? false}
+                  onChange={(event) =>
+                    setSelectedFeatureRule((prev) =>
+                      prev ? { ...prev, allowAdmin: event.target.checked } : prev,
+                    )
+                  }
+                />
+                Admin
+              </label>
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
             <p className="mb-2 text-xs font-medium text-black/70">Allowed segments</p>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
@@ -585,6 +627,38 @@ export function AdminClient() {
               className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
             />
           </label>
+          <div className="md:col-span-2">
+            <p className="mb-2 text-xs font-medium text-black/70">Allowed roles</p>
+            <div className="grid grid-cols-2 gap-2 md:max-w-md">
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newFeatureDraft.allowUser}
+                  onChange={(event) =>
+                    setNewFeatureDraft((prev) => ({
+                      ...prev,
+                      allowUser: event.target.checked,
+                    }))
+                  }
+                />
+                User
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newFeatureDraft.allowAdmin}
+                  onChange={(event) =>
+                    setNewFeatureDraft((prev) => ({
+                      ...prev,
+                      allowAdmin: event.target.checked,
+                    }))
+                  }
+                />
+                Admin
+              </label>
+            </div>
+          </div>
+
           <div className="md:col-span-2">
             <p className="mb-2 text-xs font-medium text-black/70">Allowed segments</p>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">

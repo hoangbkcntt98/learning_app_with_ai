@@ -7,6 +7,8 @@ export type FeatureAccessRuleRecord = {
   featureName: string;
   routePath: string;
   minLevel: number;
+  allowUser: boolean;
+  allowAdmin: boolean;
   allowFree: boolean;
   allowPlus: boolean;
   allowPro: boolean;
@@ -20,6 +22,8 @@ const defaultFeatureRules: FeatureAccessRuleRecord[] = [
     featureName: "Learning",
     routePath: "/play",
     minLevel: 0,
+    allowUser: true,
+    allowAdmin: false,
     allowFree: true,
     allowPlus: true,
     allowPro: true,
@@ -31,6 +35,8 @@ const defaultFeatureRules: FeatureAccessRuleRecord[] = [
     featureName: "AI Chat",
     routePath: "/ai-chat",
     minLevel: 0,
+    allowUser: true,
+    allowAdmin: false,
     allowFree: false,
     allowPlus: true,
     allowPro: true,
@@ -42,6 +48,8 @@ const defaultFeatureRules: FeatureAccessRuleRecord[] = [
     featureName: "Forum",
     routePath: "/forum",
     minLevel: 2,
+    allowUser: true,
+    allowAdmin: false,
     allowFree: true,
     allowPlus: true,
     allowPro: true,
@@ -53,6 +61,8 @@ const defaultFeatureRules: FeatureAccessRuleRecord[] = [
     featureName: "Review",
     routePath: "/review",
     minLevel: 0,
+    allowUser: true,
+    allowAdmin: false,
     allowFree: true,
     allowPlus: true,
     allowPro: true,
@@ -64,10 +74,13 @@ const defaultFeatureRules: FeatureAccessRuleRecord[] = [
     featureName: "Admin",
     routePath: "/admin",
     minLevel: 0,
-    allowFree: true,
-    allowPlus: true,
-    allowPro: true,
-    allowPremium: true,
+    // Keep admin feature restricted to admin role by default.
+    allowUser: false,
+    allowAdmin: true,
+    allowFree: false,
+    allowPlus: false,
+    allowPro: false,
+    allowPremium: false,
   },
 ];
 
@@ -85,6 +98,8 @@ function mapFeatureRule(row: {
   featureName: string;
   routePath: string;
   minLevel: number;
+  allowUser: boolean;
+  allowAdmin: boolean;
   allowFree: boolean;
   allowPlus: boolean;
   allowPro: boolean;
@@ -97,6 +112,8 @@ function mapFeatureRule(row: {
     featureName: row.featureName,
     routePath: row.routePath,
     minLevel: normalizeLevel(row.minLevel),
+    allowUser: row.allowUser,
+    allowAdmin: row.allowAdmin,
     allowFree: row.allowFree,
     allowPlus: row.allowPlus,
     allowPro: row.allowPro,
@@ -121,6 +138,8 @@ export async function ensureFeatureAccessRules() {
         featureName: feature.featureName,
         routePath: feature.routePath,
         minLevel: feature.minLevel,
+        allowUser: feature.allowUser,
+        allowAdmin: feature.allowAdmin,
         allowFree: feature.allowFree,
         allowPlus: feature.allowPlus,
         allowPro: feature.allowPro,
@@ -154,6 +173,8 @@ export async function updateFeatureAccessRule(params: {
   featureName?: string;
   routePath?: string;
   minLevel?: number;
+  allowUser?: boolean;
+  allowAdmin?: boolean;
   allowFree?: boolean;
   allowPlus?: boolean;
   allowPro?: boolean;
@@ -186,6 +207,10 @@ export async function updateFeatureAccessRule(params: {
         typeof params.minLevel === "number"
           ? normalizeLevel(params.minLevel)
           : current.minLevel,
+      allowUser:
+        typeof params.allowUser === "boolean" ? params.allowUser : current.allowUser,
+      allowAdmin:
+        typeof params.allowAdmin === "boolean" ? params.allowAdmin : current.allowAdmin,
       allowFree:
         typeof params.allowFree === "boolean" ? params.allowFree : current.allowFree,
       allowPlus:
@@ -207,6 +232,8 @@ export async function createFeatureAccessRule(params: {
   featureName: string;
   routePath: string;
   minLevel?: number;
+  allowUser?: boolean;
+  allowAdmin?: boolean;
   allowFree?: boolean;
   allowPlus?: boolean;
   allowPro?: boolean;
@@ -227,6 +254,8 @@ export async function createFeatureAccessRule(params: {
       featureName: params.featureName.trim(),
       routePath: params.routePath.trim(),
       minLevel: normalizeLevel(params.minLevel ?? 0),
+      allowUser: typeof params.allowUser === "boolean" ? params.allowUser : true,
+      allowAdmin: typeof params.allowAdmin === "boolean" ? params.allowAdmin : false,
       allowFree: typeof params.allowFree === "boolean" ? params.allowFree : true,
       allowPlus: typeof params.allowPlus === "boolean" ? params.allowPlus : true,
       allowPro: typeof params.allowPro === "boolean" ? params.allowPro : true,
@@ -267,14 +296,30 @@ function isSegmentAllowed(rule: FeatureAccessRuleRecord, segment: UserSegment) {
   return rule.allowFree;
 }
 
+function isRoleAllowed(rule: FeatureAccessRuleRecord, role: UserRecord["role"]) {
+  // Resolve role-specific toggle for one rule.
+  if (role === "admin") {
+    return rule.allowAdmin;
+  }
+  return rule.allowUser;
+}
+
 export async function checkUserFeatureAccess(user: UserRecord, featureKey: string) {
-  // Evaluate whether a user can access the feature by segment and level.
+  // Evaluate whether a user can access the feature by role, segment, and level.
   const rule = await readFeatureAccessRuleByKey(featureKey);
   if (!rule) {
     return {
       allowed: true,
       message: "",
       rule: null,
+    };
+  }
+
+  if (!isRoleAllowed(rule, user.role)) {
+    return {
+      allowed: false,
+      message: `${rule.featureName} is not available for ${user.role} role.`,
+      rule,
     };
   }
 

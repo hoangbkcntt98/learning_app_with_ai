@@ -43,7 +43,7 @@ export function QuestionAskAi({
     try {
       let cachedResponses = cachedResponsesByLanguage[cacheKey];
       if (!cachedResponses) {
-        const cachedResponse = await fetch("/api/ai/chat/cached", {
+        const cachedResponse = await fetch("/api/ai/ask/cached", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -51,7 +51,6 @@ export function QuestionAskAi({
           body: JSON.stringify({
             prompt: promptText,
             language,
-            source: "explain",
           }),
         });
 
@@ -80,7 +79,7 @@ export function QuestionAskAi({
         return;
       }
 
-      const response = await fetch("/api/ai/chat", {
+      const response = await fetch("/api/ai/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -89,7 +88,6 @@ export function QuestionAskAi({
           prompt: promptText,
           language,
           forceModel: true,
-          source: "explain",
         }),
       });
 
