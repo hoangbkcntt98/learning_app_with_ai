@@ -5,6 +5,7 @@ import { listCachedAssistantResponses } from "@/lib/chat";
 type CachedRequestBody = {
   prompt?: string;
   language?: string;
+  fieldId?: number;
 };
 
 function normalizeLanguage(input: string): string {
@@ -37,13 +38,19 @@ export async function POST(request: Request) {
   const body = (await request.json()) as CachedRequestBody;
   const prompt = body.prompt?.trim() ?? "";
   const language = normalizeLanguage(body.language ?? "");
+  const fieldId =
+    typeof body.fieldId === "number" && Number.isFinite(body.fieldId) && body.fieldId > 0
+      ? Math.trunc(body.fieldId)
+      : 1;
 
   if (!prompt) {
     return NextResponse.json({ error: "prompt is required." }, { status: 400 });
   }
 
+  // Keep cache key format aligned with /api/ai/ask route.
+  const cachePrompt = `[field:${fieldId}] ${prompt}`;
   const responses = await listCachedAssistantResponses({
-    promptText: prompt,
+    promptText: cachePrompt,
     source: "ai_ask",
     language,
     imageHash: "",

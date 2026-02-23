@@ -52,6 +52,7 @@ model QuestionField {
   id        Int      @id @default(autoincrement())
   key       String   @unique
   name      String
+  systemPrompt String @default("") @map("system_prompt")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   questions Question[]

@@ -10,11 +10,13 @@ import type { BedrockImageInput } from "@/lib/bedrock";
 import type { ImageFormat } from "@aws-sdk/client-bedrock-runtime";
 import { createHash } from "node:crypto";
 import { canUseAiModel, incrementDailyAiUsage } from "@/lib/settings";
+import { getQuestionFieldSystemPromptById } from "@/lib/question-fields";
 
 type AskRequestBody = {
   prompt?: string;
   language?: string;
   forceModel?: boolean;
+  fieldId?: number;
 };
 
 const MAX_PROMPT_LENGTH = 2000;
@@ -64,6 +66,7 @@ async function parseAskInput(request: Request): Promise<{
   source: "ai_ask";
   imageHash: string;
   forceModel: boolean;
+  fieldId: number;
   image?: BedrockImageInput;
 }> {
   // Parse both JSON and multipart requests into one normalized payload.
@@ -74,6 +77,8 @@ async function parseAskInput(request: Request): Promise<{
     const prompt = String(formData.get("prompt") ?? "").trim();
     const language = normalizeLanguage(String(formData.get("language") ?? ""));
     const forceModel = String(formData.get("forceModel") ?? "").toLowerCase() === "true";
+    const rawFieldId = Number.parseInt(String(formData.get("fieldId") ?? "1"), 10);
+    const fieldId = Number.isFinite(rawFieldId) && rawFieldId > 0 ? rawFieldId : 1;
     const rawImage = formData.get("image");
 
     if (prompt.length > MAX_PROMPT_LENGTH) {
@@ -113,6 +118,7 @@ async function parseAskInput(request: Request): Promise<{
       source: "ai_ask",
       imageHash,
       forceModel,
+      fieldId,
     };
   }
 
@@ -120,6 +126,10 @@ async function parseAskInput(request: Request): Promise<{
   const prompt = body.prompt?.trim() ?? "";
   const language = normalizeLanguage(body.language ?? "");
   const forceModel = body.forceModel === true;
+  const fieldId =
+    typeof body.fieldId === "number" && Number.isFinite(body.fieldId) && body.fieldId > 0
+      ? Math.trunc(body.fieldId)
+      : 1;
   if (!prompt) {
     throw new Error("prompt is required.");
   }
@@ -127,7 +137,20 @@ async function parseAskInput(request: Request): Promise<{
     throw new Error("prompt is too long (max 2000 characters).");
   }
 
-  return { prompt, storagePrompt: prompt, language, source: "ai_ask", imageHash: "", forceModel };
+  return {
+    prompt,
+    storagePrompt: prompt,
+    language,
+    source: "ai_ask",
+    imageHash: "",
+    forceModel,
+    fieldId,
+  };
+}
+
+function buildAskCachePrompt(prompt: string, fieldId: number) {
+  // Include field id in cache key to avoid cross-field prompt collisions.
+  return `[field:${fieldId}] ${prompt}`;
 }
 
 export async function POST(request: Request) {
@@ -149,10 +172,14 @@ export async function POST(request: Request) {
   try {
     let text = "";
     let cached = false;
+    const cachePrompt = buildAskCachePrompt(parsedInput.prompt, parsedInput.fieldId);
+    const fieldSystemPrompt = await getQuestionFieldSystemPromptById(parsedInput.fieldId);
+    const languageSystemPrompt = `You must answer strictly in ${parsedInput.language}. Do not use other languages.`;
+    const mergedSystemPrompt = [fieldSystemPrompt, languageSystemPrompt].filter(Boolean).join("\n\n");
 
     if (!parsedInput.forceModel) {
       const cachedText = await findCachedAssistantResponse({
-        promptText: parsedInput.prompt,
+        promptText: cachePrompt,
         source: parsedInput.source,
         language: parsedInput.language,
         imageHash: parsedInput.imageHash,
@@ -177,12 +204,12 @@ export async function POST(request: Request) {
 
       text = await generateBedrockText(parsedInput.prompt, {
         image: parsedInput.image,
-        extraSystemPrompt: `You must answer strictly in ${parsedInput.language}. Do not use other languages.`,
+        extraSystemPrompt: mergedSystemPrompt,
       });
       await incrementDailyAiUsage(user.email);
       await upsertChatPromptCache({
         userEmail: user.email,
-        promptText: parsedInput.prompt,
+        promptText: cachePrompt,
         source: parsedInput.source,
         language: parsedInput.language,
         imageHash: parsedInput.imageHash,

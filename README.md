@@ -25,12 +25,13 @@ Optional:
 - `BEDROCK_REGION` (fallback to `AWS_REGION`)
 - `BEDROCK_MAX_TOKENS`
 - `BEDROCK_TEMPERATURE`
-- `BEDROCK_SYSTEM_PROMPT`
 - `DEFAULT_AI_DAILY_QUOTA_PER_USER`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `NEXT_PUBLIC_APP_URL`
 - `GOOGLE_REDIRECT_URI` (recommended, exact callback URL)
+
+AI system prompts are configured per Question Field in Admin Panel (`Question Field Management`), not via `.env`.
 
 ## Google Login Setup
 
@@ -127,7 +128,6 @@ Use these steps to deploy this app to production on Vercel.
    - `BEDROCK_MODEL_ID` (optional)
    - `BEDROCK_MAX_TOKENS` (optional)
    - `BEDROCK_TEMPERATURE` (optional)
-   - `BEDROCK_SYSTEM_PROMPT` (optional)
    - `NEXT_PUBLIC_DEFAULT_LANGUAGE` (optional)
    - `DEFAULT_AI_DAILY_QUOTA_PER_USER` (optional, default per-user AI daily quota)
    - `GOOGLE_CLIENT_ID`

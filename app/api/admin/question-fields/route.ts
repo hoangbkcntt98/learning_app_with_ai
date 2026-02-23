@@ -20,16 +20,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  const body = (await request.json()) as { key?: string; name?: string };
+  const body = (await request.json()) as { key?: string; name?: string; systemPrompt?: string };
   const key = String(body.key ?? "").trim().toLowerCase();
   const name = String(body.name ?? "").trim();
+  const systemPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt.trim() : "";
 
   if (!key || !name) {
     return NextResponse.json({ error: "key and name are required." }, { status: 400 });
   }
 
   try {
-    const field = await createQuestionField({ key, name });
+    const field = await createQuestionField({ key, name, systemPrompt });
     return NextResponse.json({ field }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Failed to create field. key may already exist." }, { status: 409 });

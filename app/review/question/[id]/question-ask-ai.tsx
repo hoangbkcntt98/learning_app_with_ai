@@ -6,9 +6,11 @@ import { DEFAULT_LANGUAGE, LANGUAGE_OPTIONS, type SupportedLanguage } from "@/li
 export function QuestionAskAi({
   prompt,
   options,
+  fieldId,
 }: {
   prompt: string;
   options: [string, string, string, string];
+  fieldId: number;
 }) {
   const [language, setLanguage] = useState<SupportedLanguage>(DEFAULT_LANGUAGE);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +53,7 @@ export function QuestionAskAi({
           body: JSON.stringify({
             prompt: promptText,
             language,
+            fieldId,
           }),
         });
 
@@ -87,6 +90,7 @@ export function QuestionAskAi({
         body: JSON.stringify({
           prompt: promptText,
           language,
+          fieldId,
           forceModel: true,
         }),
       });

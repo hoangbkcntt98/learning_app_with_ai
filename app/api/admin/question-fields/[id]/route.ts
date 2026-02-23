@@ -7,7 +7,7 @@ type Context = {
 };
 
 export async function PATCH(request: Request, context: Context) {
-  // Update one question field key/name.
+  // Update one question field key/name/system prompt.
   const admin = await getCurrentAdminUser();
   if (!admin) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
@@ -19,7 +19,7 @@ export async function PATCH(request: Request, context: Context) {
     return NextResponse.json({ error: "Invalid field id." }, { status: 400 });
   }
 
-  const body = (await request.json()) as { key?: string; name?: string };
+  const body = (await request.json()) as { key?: string; name?: string; systemPrompt?: string };
   if (
     (body.key !== undefined && !String(body.key).trim()) ||
     (body.name !== undefined && !String(body.name).trim())
@@ -32,6 +32,7 @@ export async function PATCH(request: Request, context: Context) {
       id: Math.trunc(id),
       key: typeof body.key === "string" ? body.key.trim().toLowerCase() : undefined,
       name: typeof body.name === "string" ? body.name.trim() : undefined,
+      systemPrompt: typeof body.systemPrompt === "string" ? body.systemPrompt : undefined,
     });
     if (!updated) {
       return NextResponse.json({ error: "Field not found." }, { status: 404 });

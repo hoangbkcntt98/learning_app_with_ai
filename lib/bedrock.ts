@@ -56,7 +56,6 @@ export async function generateBedrockText(
 ): Promise<string> {
   // Send a prompt (and optional image) to Bedrock and return plain text output.
   const modelId = process.env.BEDROCK_MODEL_ID?.trim() || DEFAULT_MODEL_ID;
-  const baseSystemPrompt = process.env.BEDROCK_SYSTEM_PROMPT?.trim();
   const extraSystemPrompt = options?.extraSystemPrompt?.trim();
   const maxTokens = parseNumberEnv("BEDROCK_MAX_TOKENS", DEFAULT_MAX_TOKENS);
   const temperature = parseNumberEnv("BEDROCK_TEMPERATURE", DEFAULT_TEMPERATURE);
@@ -77,7 +76,6 @@ export async function generateBedrockText(
     : [{ text: prompt }];
 
   const systemBlocks = [
-    ...(baseSystemPrompt ? [{ text: baseSystemPrompt }] : []),
     ...(extraSystemPrompt ? [{ text: extraSystemPrompt }] : []),
   ];
 

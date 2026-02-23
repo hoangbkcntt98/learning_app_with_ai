@@ -4,20 +4,28 @@ export type QuestionFieldRecord = {
   id: number;
   key: string;
   name: string;
+  systemPrompt: string;
 };
 
 const DEFAULT_QUESTION_FIELD = {
   id: 1,
   key: "jlpt",
   name: "JLPT",
+  systemPrompt: "",
 };
 
-function mapQuestionField(row: { id: number; key: string; name: string }): QuestionFieldRecord {
+function mapQuestionField(row: {
+  id: number;
+  key: string;
+  name: string;
+  systemPrompt: string;
+}): QuestionFieldRecord {
   // Convert Prisma model into app-level DTO.
   return {
     id: row.id,
     key: row.key,
     name: row.name,
+    systemPrompt: row.systemPrompt,
   };
 }
 
@@ -53,18 +61,24 @@ export async function findQuestionFieldById(id: number) {
   return field ? mapQuestionField(field) : null;
 }
 
-export async function createQuestionField(params: { key: string; name: string }) {
+export async function createQuestionField(params: { key: string; name: string; systemPrompt?: string }) {
   // Create a new question field for admin-managed contexts.
   const created = await prisma.questionField.create({
     data: {
       key: params.key.trim(),
       name: params.name.trim(),
+      systemPrompt: params.systemPrompt?.trim() ?? "",
     },
   });
   return mapQuestionField(created);
 }
 
-export async function updateQuestionField(params: { id: number; key?: string; name?: string }) {
+export async function updateQuestionField(params: {
+  id: number;
+  key?: string;
+  name?: string;
+  systemPrompt?: string;
+}) {
   // Update one field without changing unspecified values.
   const current = await prisma.questionField.findUnique({
     where: { id: params.id },
@@ -79,9 +93,24 @@ export async function updateQuestionField(params: { id: number; key?: string; na
       key: typeof params.key === "string" && params.key.trim() ? params.key.trim() : current.key,
       name:
         typeof params.name === "string" && params.name.trim() ? params.name.trim() : current.name,
+      systemPrompt:
+        typeof params.systemPrompt === "string"
+          ? params.systemPrompt.trim()
+          : current.systemPrompt,
     },
   });
   return mapQuestionField(updated);
+}
+
+export async function getQuestionFieldSystemPromptById(id: number) {
+  // Resolve one field-level system prompt for AI behaviors.
+  const field = await prisma.questionField.findUnique({
+    where: { id },
+    select: {
+      systemPrompt: true,
+    },
+  });
+  return field?.systemPrompt?.trim() ?? "";
 }
 
 export async function deleteQuestionFieldById(id: number) {

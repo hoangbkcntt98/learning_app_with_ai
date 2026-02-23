@@ -358,6 +358,7 @@ export function GameClient({
           body: JSON.stringify({
             prompt,
             language: explanationLanguage,
+            fieldId: currentQuestion.fieldId,
           }),
         });
 
@@ -409,6 +410,7 @@ export function GameClient({
         body: JSON.stringify({
           prompt,
           language: explanationLanguage,
+          fieldId: currentQuestion.fieldId,
           forceModel: true,
         }),
       });

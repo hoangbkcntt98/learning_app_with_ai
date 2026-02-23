@@ -9,6 +9,7 @@ type QuestionField = {
   id: number;
   key: string;
   name: string;
+  systemPrompt: string;
 };
 
 export function AdminQuestionFieldsClient() {
@@ -17,7 +18,7 @@ export function AdminQuestionFieldsClient() {
   const [loadingMessage, setLoadingMessage] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [newField, setNewField] = useState({ key: "", name: "" });
+  const [newField, setNewField] = useState({ key: "", name: "", systemPrompt: "" });
   const [editingField, setEditingField] = useState<QuestionField | null>(null);
   const [deletingField, setDeletingField] = useState<QuestionField | null>(null);
 
@@ -67,6 +68,7 @@ export function AdminQuestionFieldsClient() {
         body: JSON.stringify({
           key: newField.key.trim().toLowerCase(),
           name: newField.name.trim(),
+          systemPrompt: newField.systemPrompt,
         }),
       });
       if (!response.ok) {
@@ -76,7 +78,7 @@ export function AdminQuestionFieldsClient() {
       }
       const body = (await response.json()) as { field: QuestionField };
       setFields((prev) => [...prev, body.field]);
-      setNewField({ key: "", name: "" });
+      setNewField({ key: "", name: "", systemPrompt: "" });
       setStatus("Question field created.");
     } catch {
       setError("Failed to create field.");
@@ -99,6 +101,7 @@ export function AdminQuestionFieldsClient() {
         body: JSON.stringify({
           key: editingField.key.trim().toLowerCase(),
           name: editingField.name.trim(),
+          systemPrompt: editingField.systemPrompt,
         }),
       });
       if (!response.ok) {
@@ -180,6 +183,15 @@ export function AdminQuestionFieldsClient() {
             onChange={(event) => setNewField((prev) => ({ ...prev, name: event.target.value }))}
             className="rounded-lg border border-black/20 px-3 py-2 text-sm"
           />
+          <textarea
+            value={newField.systemPrompt}
+            onChange={(event) =>
+              setNewField((prev) => ({ ...prev, systemPrompt: event.target.value }))
+            }
+            placeholder="System prompt for this field (optional)"
+            className="rounded-lg border border-black/20 px-3 py-2 text-sm md:col-span-3"
+            rows={4}
+          />
           <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">Create</button>
         </form>
       </section>
@@ -199,6 +211,7 @@ export function AdminQuestionFieldsClient() {
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">ID</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Key</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Name</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">System prompt</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Action</th>
               </tr>
             </thead>
@@ -208,6 +221,13 @@ export function AdminQuestionFieldsClient() {
                   <td className="border-b border-black/10 px-3 py-2">{field.id}</td>
                   <td className="border-b border-black/10 px-3 py-2">{field.key}</td>
                   <td className="border-b border-black/10 px-3 py-2">{field.name}</td>
+                  <td className="border-b border-black/10 px-3 py-2">
+                    {field.systemPrompt ? (
+                      <p className="max-w-md truncate">{field.systemPrompt}</p>
+                    ) : (
+                      <span className="text-black/50">-</span>
+                    )}
+                  </td>
                   <td className="border-b border-black/10 px-3 py-2">
                     <div className="flex gap-2">
                       <button
@@ -230,7 +250,7 @@ export function AdminQuestionFieldsClient() {
               ))}
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-3 text-sm text-black/60">
+                  <td colSpan={5} className="px-3 py-3 text-sm text-black/60">
                     No fields found.
                   </td>
                 </tr>
@@ -257,6 +277,17 @@ export function AdminQuestionFieldsClient() {
                 setEditingField((prev) => (prev ? { ...prev, name: event.target.value } : prev))
               }
               className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+            />
+            <textarea
+              value={editingField.systemPrompt}
+              onChange={(event) =>
+                setEditingField((prev) =>
+                  prev ? { ...prev, systemPrompt: event.target.value } : prev,
+                )
+              }
+              placeholder="System prompt for this field (optional)"
+              className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+              rows={5}
             />
             <div className="mt-1 flex gap-2">
               <button

@@ -69,7 +69,7 @@ export default async function ReviewQuestionDetailPage({
         </div>
       </div>
 
-      <QuestionAskAi prompt={question.prompt} options={question.options} />
+      <QuestionAskAi prompt={question.prompt} options={question.options} fieldId={question.fieldId} />
 
       {canShowNoteEditor && selectedListType ? (
         <ReviewNoteEditor
