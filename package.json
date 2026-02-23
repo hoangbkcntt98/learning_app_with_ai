@@ -11,7 +11,9 @@
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push",
     "seed:users": "node scripts/seed-users.mjs",
-    "seed:questions": "node scripts/seed-questions.mjs"
+    "seed:questions": "node scripts/seed-questions.mjs",
+    "import:questions": "node scripts/import-questions-json.mjs questions_example.json",
+    "import:questions:replace": "node scripts/import-questions-json.mjs questions_example.json --replace"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.995.0",

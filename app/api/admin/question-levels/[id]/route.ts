@@ -60,7 +60,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(_request: Request, context: Context) {
-  // Delete one managed question level when not used by questions.
+  // Delete one managed question level and related questions in this level.
   const admin = await getCurrentAdminUser();
   if (!admin) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
@@ -74,9 +74,6 @@ export async function DELETE(_request: Request, context: Context) {
 
   const result = await deleteQuestionLevelById(Math.trunc(id));
   if (!result.ok) {
-    if (result.reason === "in_use") {
-      return NextResponse.json({ error: "Level is used by existing questions." }, { status: 400 });
-    }
     return NextResponse.json({ error: "Level not found." }, { status: 404 });
   }
 

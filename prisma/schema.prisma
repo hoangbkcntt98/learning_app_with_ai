@@ -41,7 +41,7 @@ model Question {
   option4      String   @map("option_4")
   correctIndex Int      @map("correct_index")
   createdAt    DateTime @default(now()) @map("created_at")
-  questionField QuestionField @relation(fields: [questionFieldId], references: [id], onDelete: Restrict)
+  questionField QuestionField @relation(fields: [questionFieldId], references: [id], onDelete: Cascade)
   userLists    UserQuestionList[]
   userNotes    UserQuestionNote[]
 

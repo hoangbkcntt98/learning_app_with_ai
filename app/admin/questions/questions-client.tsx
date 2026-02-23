@@ -105,6 +105,8 @@ export function AdminQuestionsClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [fieldFilter, setFieldFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("");
@@ -127,6 +129,14 @@ export function AdminQuestionsClient() {
     () => levels.filter((item) => item.questionFieldId === newQuestion.fieldId),
     [levels, newQuestion.fieldId],
   );
+
+  const totalPages = Math.max(1, Math.ceil(filteredQuestions.length / rowsPerPage));
+
+  const paginatedQuestions = useMemo(() => {
+    // Slice filtered rows for the currently selected page.
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return filteredQuestions.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredQuestions, currentPage, rowsPerPage]);
 
   const editFieldLevels = useMemo(
     () =>
@@ -176,6 +186,16 @@ export function AdminQuestionsClient() {
 
     loadQuestions();
   }, []);
+
+  useEffect(() => {
+    // Reset to first page whenever filters/search are changed.
+    setCurrentPage(1);
+  }, [searchTerm, levelFilter, fieldFilter, rowsPerPage]);
+
+  useEffect(() => {
+    // Keep page in valid range when list size changes after create/delete/edit.
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
 
   async function createQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -462,7 +482,7 @@ export function AdminQuestionsClient() {
               </tr>
             </thead>
             <tbody>
-              {filteredQuestions.map((question) => (
+              {paginatedQuestions.map((question) => (
                 <tr key={question.id}>
                   <td className="border-b border-black/10 px-3 py-2">{question.id}</td>
                   <td className="border-b border-black/10 px-3 py-2">{question.fieldName}</td>
@@ -493,6 +513,50 @@ export function AdminQuestionsClient() {
               ) : null}
             </tbody>
           </table>
+        </div>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-black/70">
+            {/* Show the current row range for admin clarity. */}
+            {filteredQuestions.length === 0
+              ? "Showing 0 of 0"
+              : `Showing ${(currentPage - 1) * rowsPerPage + 1}-${Math.min(
+                  currentPage * rowsPerPage,
+                  filteredQuestions.length,
+                )} of ${filteredQuestions.length}`}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs text-black/70">
+              Rows
+              <select
+                value={rowsPerPage}
+                onChange={(event) => setRowsPerPage(Number.parseInt(event.target.value || "10", 10))}
+                className="ml-1 rounded border border-black/20 px-2 py-1 text-sm"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage <= 1}
+              className="rounded border border-black/20 px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="text-sm text-black/80">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+              className="rounded border border-black/20 px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </section>
 

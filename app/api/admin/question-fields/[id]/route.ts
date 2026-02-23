@@ -43,7 +43,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(_request: Request, context: Context) {
-  // Delete one question field if not protected/in use.
+  // Delete one question field if not protected.
   const admin = await getCurrentAdminUser();
   if (!admin) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
@@ -59,9 +59,6 @@ export async function DELETE(_request: Request, context: Context) {
   if (!result.ok) {
     if (result.reason === "default") {
       return NextResponse.json({ error: "Default field cannot be deleted." }, { status: 400 });
-    }
-    if (result.reason === "in_use") {
-      return NextResponse.json({ error: "Field is used by existing questions." }, { status: 400 });
     }
     return NextResponse.json({ error: "Field not found." }, { status: 404 });
   }

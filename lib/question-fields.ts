@@ -98,13 +98,9 @@ export async function deleteQuestionFieldById(id: number) {
     return { ok: false as const, reason: "not_found" as const };
   }
 
-  try {
-    await prisma.questionField.delete({
-      where: { id },
-    });
-    return { ok: true as const };
-  } catch {
-    // Prisma throws when this field is still referenced by questions.
-    return { ok: false as const, reason: "in_use" as const };
-  }
+  // Related question levels and questions are deleted by DB-level cascade.
+  await prisma.questionField.delete({
+    where: { id },
+  });
+  return { ok: true as const };
 }

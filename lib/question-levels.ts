@@ -168,7 +168,7 @@ export async function updateQuestionLevel(params: {
 }
 
 export async function deleteQuestionLevelById(id: number) {
-  // Delete one level unless it is still used by existing questions.
+  // Delete one level and cascade-delete related questions in the same field/level.
   const current = await prisma.questionLevel.findUnique({
     where: { id },
     select: {
@@ -181,21 +181,16 @@ export async function deleteQuestionLevelById(id: number) {
     return { ok: false as const, reason: "not_found" as const };
   }
 
-  const inUse = await prisma.question.findFirst({
-    where: {
-      questionFieldId: current.questionFieldId,
-      level: current.name,
-    },
-    select: {
-      id: true,
-    },
-  });
-  if (inUse) {
-    return { ok: false as const, reason: "in_use" as const };
-  }
-
-  await prisma.questionLevel.delete({
-    where: { id },
-  });
+  await prisma.$transaction([
+    prisma.question.deleteMany({
+      where: {
+        questionFieldId: current.questionFieldId,
+        level: current.name,
+      },
+    }),
+    prisma.questionLevel.delete({
+      where: { id },
+    }),
+  ]);
   return { ok: true as const };
 }
