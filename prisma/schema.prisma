@@ -15,6 +15,7 @@ model User {
   avatarUrl    String?        @map("avatar_url")
   points       Int            @default(0)
   level        Int            @default(0)
+  correctStreak Int           @default(0) @map("correct_streak")
   role         String
   aiDailyQuota Int?           @map("ai_daily_quota")
   createdAt    DateTime       @default(now()) @map("created_at")

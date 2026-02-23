@@ -36,11 +36,17 @@ function computeLevelProgress(points: number, level: number) {
     return Math.round(ratio * 100);
   }
 
-  const min = 10 ** level;
-  const max = 10 ** (level + 1);
+  const min = 10 ** level / 2;
+  const max = 10 ** (level + 1) / 2;
   const clampedPoints = Math.max(min, Math.min(points, max));
   const ratio = (clampedPoints - min) / (max - min);
   return Math.round(ratio * 100);
+}
+
+function getPointsToNextLevel(points: number, level: number) {
+  // Match level thresholds so UI shows accurate remaining points.
+  const nextLevelPoints = level <= 0 ? 10 : 10 ** (level + 1) / 2;
+  return Math.max(0, Math.ceil(nextLevelPoints - points));
 }
 
 function getInitialLetter(name: string, email: string) {
@@ -57,6 +63,7 @@ export function UserSummaryCard({
   showEditProfile?: boolean;
 }) {
   const levelProgressPercent = computeLevelProgress(user.points, user.level);
+  const pointsToNextLevel = getPointsToNextLevel(user.points, user.level);
 
   return (
     <div className="w-full rounded-2xl border border-black/10 p-8 shadow-sm">
@@ -113,6 +120,9 @@ export function UserSummaryCard({
               />
             </div>
           </div>
+          <p className="mt-2 text-xs text-black/60">
+            Need <strong>{pointsToNextLevel}</strong> more points to reach next level
+          </p>
         </div>
       </div>
     </div>

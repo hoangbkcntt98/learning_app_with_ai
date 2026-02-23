@@ -14,6 +14,7 @@ export type UserRecord = {
   avatarUrl: string | null;
   points: number;
   level: number;
+  correctStreak: number;
   role: "admin" | "user";
   aiDailyQuota: number;
   questionFieldIds: number[];
@@ -47,7 +48,7 @@ export function calculateLevelFromPoints(points: number) {
   }
 
   let level = 1;
-  while (points >= 10 ** (level + 1)) {
+  while (points >= 10 ** (level + 1) / 2) {
     level += 1;
   }
   return level;
@@ -69,6 +70,7 @@ function mapUser(row: {
   avatarUrl?: string | null;
   points: number;
   level: number;
+  correctStreak?: number;
   role: string;
   aiDailyQuota: number | null;
   createdAt?: Date;
@@ -84,6 +86,10 @@ function mapUser(row: {
     avatarUrl: row.avatarUrl ?? null,
     points: row.points,
     level: row.level,
+    correctStreak:
+      typeof row.correctStreak === "number" && Number.isFinite(row.correctStreak)
+        ? Math.max(0, Math.trunc(row.correctStreak))
+        : 0,
     role: row.role === "admin" ? "admin" : "user",
     aiDailyQuota:
       typeof row.aiDailyQuota === "number" && row.aiDailyQuota > 0
@@ -263,6 +269,79 @@ export async function addPointsToUser(email: string, delta: number) {
   });
 
   return mapUser(updated);
+}
+
+export type ApplyGameAnswerResult = {
+  user: UserRecord;
+  delta: number;
+  bonusPoints: number;
+  streak: number;
+};
+
+export async function applyGameAnswerResult(
+  email: string,
+  isCorrect: boolean,
+): Promise<ApplyGameAnswerResult | null> {
+  // Apply base score change, track correct-answer streak, and grant 5-in-a-row bonus.
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.user.findUnique({
+      where: { email: normalizedEmail },
+      include: {
+        questionFieldAccesses: {
+          select: {
+            questionFieldId: true,
+          },
+        },
+      },
+    });
+    if (!current) {
+      return null;
+    }
+
+    const baseDelta = isCorrect ? 5 : -5;
+    const previousStreak =
+      typeof current.correctStreak === "number" ? Math.max(0, current.correctStreak) : 0;
+    let nextPoints = current.points + baseDelta;
+    let nextLevel = calculateLevelFromPoints(nextPoints);
+    let nextStreak = isCorrect ? previousStreak + 1 : 0;
+    let bonusPoints = 0;
+
+    if (isCorrect && nextStreak >= 5) {
+      // Reward when user reaches 5 consecutive correct answers.
+      bonusPoints = nextLevel * 10;
+      nextPoints += bonusPoints;
+      nextLevel = calculateLevelFromPoints(nextPoints);
+      nextStreak = 0;
+    }
+
+    const updated = await tx.user.update({
+      where: { email: normalizedEmail },
+      data: {
+        points: nextPoints,
+        level: nextLevel,
+        correctStreak: nextStreak,
+      },
+      include: {
+        questionFieldAccesses: {
+          select: {
+            questionFieldId: true,
+          },
+        },
+      },
+    });
+
+    return {
+      user: mapUser(updated),
+      delta: baseDelta,
+      bonusPoints,
+      streak: nextStreak,
+    };
+  });
 }
 
 export async function createUserByAdmin(params: {
@@ -468,6 +547,7 @@ export function sanitizeUser(user: UserRecord) {
     avatarUrl: user.avatarUrl,
     points: user.points,
     level: user.level,
+    correctStreak: user.correctStreak,
     role: user.role,
     aiDailyQuota: user.aiDailyQuota,
     questionFieldIds: user.questionFieldIds,

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { type ClipboardEvent, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -34,6 +34,8 @@ type AnswerResult = {
   points: number;
   level: number;
   delta: number;
+  bonusPoints?: number;
+  streak?: number;
 };
 
 const optionLabels = ["A", "B", "C", "D"] as const;
@@ -741,7 +743,17 @@ export function GameClient({
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-8">
       {isLoadingQuestions ? <LoadingPopup message="Loading questions..." /> : null}
       {isSubmittingAnswer ? <LoadingPopup message="Checking your answer..." /> : null}
-      {answerResult ? (
+      {answerResult && (answerResult.bonusPoints ?? 0) > 0 ? (
+        <FeedbackPopup
+          isOpen={showAnswerFeedbackPopup}
+          title="Streak reward!"
+          message={`You reached 5 correct answers in a row and earned ${answerResult.bonusPoints} bonus points.`}
+          imageSrc="/images/bonous.png"
+          imageAlt="Streak reward celebration"
+          tone="success"
+          onClose={() => setShowAnswerFeedbackPopup(false)}
+        />
+      ) : answerResult ? (
         <FeedbackPopup
           isOpen={showAnswerFeedbackPopup}
           title={answerResult.correct ? "Correct! +5 points." : "Incorrect. -5 points."}

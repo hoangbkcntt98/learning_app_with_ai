@@ -4,7 +4,6 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
 import "./globals.css";
 import { LogoutButton } from "./logout-button";
-import { ThemeToggle } from "./theme-toggle";
 import { TopLogoMenu } from "./top-logo-menu";
 
 const geistSans = Geist({
@@ -65,7 +64,6 @@ export default async function RootLayout({
               </div>
             </header>
           ) : null}
-          <ThemeToggle />
           <div className="flex-1">{children}</div>
           {/* Shared footer links improve navigation and product trust cues. */}
           <footer className="border-t border-black/10 bg-white/80 px-4 py-4 text-sm dark:bg-neutral-900/80">

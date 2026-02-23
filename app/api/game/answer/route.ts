@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
-import { addPointsToUser } from "@/lib/users";
+import { applyGameAnswerResult } from "@/lib/users";
 import { findQuestionById } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
 import { addQuestionToUserList } from "@/lib/question-lists";
@@ -44,10 +44,9 @@ export async function POST(request: Request) {
   }
 
   const isCorrect = selectedIndex === question.correctIndex;
-  const delta = isCorrect ? 5 : -5;
-  const updatedUser = await addPointsToUser(user.email, delta);
+  const answerResult = await applyGameAnswerResult(user.email, isCorrect);
 
-  if (!updatedUser) {
+  if (!answerResult) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
 
@@ -59,8 +58,10 @@ export async function POST(request: Request) {
   return NextResponse.json({
     correct: isCorrect,
     correctIndex: question.correctIndex,
-    points: updatedUser.points,
-    level: updatedUser.level,
-    delta,
+    points: answerResult.user.points,
+    level: answerResult.user.level,
+    delta: answerResult.delta,
+    bonusPoints: answerResult.bonusPoints,
+    streak: answerResult.streak,
   });
 }
