@@ -40,16 +40,6 @@ export default async function Home() {
     }
 
     const parts: string[] = [];
-    const allowedRoles: string[] = [];
-    if (access.rule.allowUser) {
-      allowedRoles.push("user");
-    }
-    if (access.rule.allowAdmin) {
-      allowedRoles.push("admin");
-    }
-    if (allowedRoles.length > 0) {
-      parts.push(`Allowed roles: ${allowedRoles.join(", ")}.`);
-    }
     if (allowedSegments.length > 0) {
       parts.push(`Allowed segments: ${allowedSegments.join(", ")}.`);
     }
