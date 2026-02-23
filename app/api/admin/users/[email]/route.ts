@@ -28,6 +28,7 @@ export async function PATCH(request: Request, context: Context) {
     role?: "admin" | "user";
     password?: string;
     aiDailyQuota?: number;
+    questionFieldIds?: number[];
   };
 
   if (typeof body.points === "number" && !Number.isFinite(body.points)) {
@@ -59,21 +60,38 @@ export async function PATCH(request: Request, context: Context) {
       { status: 400 },
     );
   }
+  const questionFieldIds = Array.isArray(body.questionFieldIds)
+    ? body.questionFieldIds
+        .map((item) => (Number.isFinite(item) ? Math.trunc(item) : NaN))
+        .filter((item) => Number.isFinite(item) && item > 0)
+    : undefined;
+  if (Array.isArray(body.questionFieldIds) && (!questionFieldIds || questionFieldIds.length === 0)) {
+    return NextResponse.json({ error: "Select at least one question field." }, { status: 400 });
+  }
   const segment: UserSegment | undefined =
     typeof body.segment === "string" && isUserSegment(body.segment.trim())
       ? (body.segment.trim() as UserSegment)
       : undefined;
 
-  const user = await updateUserByAdmin({
-    email,
-    name: body.name,
-    segment,
-    points: body.points,
-    level: body.level,
-    role: body.role,
-    password: body.password,
-    aiDailyQuota: body.aiDailyQuota,
-  });
+  let user = null;
+  try {
+    user = await updateUserByAdmin({
+      email,
+      name: body.name,
+      segment,
+      points: body.points,
+      level: body.level,
+      role: body.role,
+      password: body.password,
+      aiDailyQuota: body.aiDailyQuota,
+      questionFieldIds,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "At least one question field is required") {
+      return NextResponse.json({ error: "Select at least one question field." }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Failed to update user." }, { status: 500 });
+  }
 
   if (!user) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });

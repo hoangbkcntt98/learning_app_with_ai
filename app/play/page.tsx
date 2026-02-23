@@ -14,5 +14,11 @@ export default async function PlayPage() {
     return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
 
-  return <GameClient initialPoints={user.points} initialLevel={user.level} />;
+  return (
+    <GameClient
+      initialPoints={user.points}
+      initialLevel={user.level}
+      isAdmin={user.role === "admin"}
+    />
+  );
 }

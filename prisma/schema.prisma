@@ -26,6 +26,8 @@ model User {
   forumComments ForumComment[]
   questionLists UserQuestionList[]
   questionNotes UserQuestionNote[]
+  questionFieldAccesses UserQuestionFieldAccess[]
+  questionReports QuestionReport[]
 
   @@map("users")
 }
@@ -44,8 +46,24 @@ model Question {
   questionField QuestionField @relation(fields: [questionFieldId], references: [id], onDelete: Cascade)
   userLists    UserQuestionList[]
   userNotes    UserQuestionNote[]
+  reports      QuestionReport[]
 
   @@map("questions")
+}
+
+model QuestionReport {
+  id         BigInt   @id @default(autoincrement())
+  userEmail  String   @map("user_email")
+  questionId Int      @map("question_id")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt(sort: Desc)], map: "idx_question_reports_created_at")
+  @@index([questionId], map: "idx_question_reports_question_id")
+  @@index([userEmail], map: "idx_question_reports_user_email")
+  @@map("question_reports")
 }
 
 model QuestionField {
@@ -53,12 +71,26 @@ model QuestionField {
   key       String   @unique
   name      String
   systemPrompt String @default("") @map("system_prompt")
+  explanationPromptTemplate String @default("") @map("explanation_prompt_template")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   questions Question[]
   questionLevels QuestionLevel[]
+  userAccesses UserQuestionFieldAccess[]
 
   @@map("question_fields")
+}
+
+model UserQuestionFieldAccess {
+  userEmail       String @map("user_email")
+  questionFieldId Int    @map("question_field_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  user            User   @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  questionField   QuestionField @relation(fields: [questionFieldId], references: [id], onDelete: Cascade)
+
+  @@id([userEmail, questionFieldId], map: "pk_user_question_field_access")
+  @@index([questionFieldId], map: "idx_user_question_field_access_field_id")
+  @@map("user_question_field_access")
 }
 
 model QuestionLevel {

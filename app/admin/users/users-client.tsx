@@ -13,6 +13,12 @@ type User = {
   level: number;
   role: "admin" | "user";
   aiDailyQuota: number;
+  questionFieldIds: number[];
+};
+
+type QuestionField = {
+  id: number;
+  name: string;
 };
 
 function ViewIcon() {
@@ -77,6 +83,7 @@ function ActionButton({
 
 export function AdminUsersClient() {
   const [users, setUsers] = useState<User[]>([]);
+  const [questionFields, setQuestionFields] = useState<QuestionField[]>([]);
   const [newUser, setNewUser] = useState({
     email: "",
     name: "",
@@ -84,6 +91,7 @@ export function AdminUsersClient() {
     password: "",
     role: "user" as "admin" | "user",
     points: 0,
+    questionFieldIds: [] as number[],
   });
   const [selectedUserView, setSelectedUserView] = useState<User | null>(null);
   const [selectedUserEdit, setSelectedUserEdit] = useState<User | null>(null);
@@ -112,13 +120,29 @@ export function AdminUsersClient() {
       setError("");
       setLoadingMessage("Loading users...");
       try {
-        const response = await fetch("/api/admin/users");
-        if (!response.ok) {
+        const [userResponse, fieldResponse] = await Promise.all([
+          fetch("/api/admin/users"),
+          fetch("/api/admin/question-fields"),
+        ]);
+        if (!userResponse.ok || !fieldResponse.ok) {
           setError("Failed to load users.");
           return;
         }
-        const body = (await response.json()) as { users: User[] };
-        setUsers(body.users ?? []);
+        const userBody = (await userResponse.json()) as { users: User[] };
+        const fieldBody = (await fieldResponse.json()) as { fields: Array<{ id: number; name: string }> };
+        const loadedFields = (fieldBody.fields ?? []).map((field) => ({
+          id: field.id,
+          name: field.name,
+        }));
+        setUsers(userBody.users ?? []);
+        setQuestionFields(loadedFields);
+        if (loadedFields.length > 0) {
+          setNewUser((prev) => ({
+            ...prev,
+            questionFieldIds:
+              prev.questionFieldIds.length > 0 ? prev.questionFieldIds : loadedFields.map((f) => f.id),
+          }));
+        }
       } catch {
         setError("Failed to load users.");
       } finally {
@@ -133,6 +157,10 @@ export function AdminUsersClient() {
     event.preventDefault();
     setError("");
     setStatus("");
+    if (newUser.questionFieldIds.length === 0) {
+      setError("Select at least one question field.");
+      return;
+    }
     setLoadingMessage("Creating user...");
     try {
       const response = await fetch("/api/admin/users", {
@@ -155,6 +183,7 @@ export function AdminUsersClient() {
         password: "",
         role: "user",
         points: 0,
+        questionFieldIds: questionFields.map((field) => field.id),
       });
     } catch {
       setError("Failed to create user.");
@@ -169,6 +198,10 @@ export function AdminUsersClient() {
     }
     setError("");
     setStatus("");
+    if (selectedUserEdit.questionFieldIds.length === 0) {
+      setError("Select at least one question field.");
+      return;
+    }
     setLoadingMessage(`Saving ${selectedUserEdit.email}...`);
     try {
       const response = await fetch(`/api/admin/users/${encodeURIComponent(selectedUserEdit.email)}`, {
@@ -181,6 +214,7 @@ export function AdminUsersClient() {
           level: selectedUserEdit.level,
           role: selectedUserEdit.role,
           aiDailyQuota: selectedUserEdit.aiDailyQuota,
+          questionFieldIds: selectedUserEdit.questionFieldIds,
         }),
       });
       if (!response.ok) {
@@ -197,6 +231,22 @@ export function AdminUsersClient() {
     } finally {
       setLoadingMessage("");
     }
+  }
+
+  function toggleFieldSelection(selectedIds: number[], fieldId: number) {
+    // Toggle one field id in the selected list for checkbox groups.
+    if (selectedIds.includes(fieldId)) {
+      return selectedIds.filter((item) => item !== fieldId);
+    }
+    return [...selectedIds, fieldId];
+  }
+
+  function getUserFieldNames(user: User) {
+    // Resolve selected field ids into display names.
+    const selected = questionFields
+      .filter((field) => user.questionFieldIds.includes(field.id))
+      .map((field) => field.name);
+    return selected.length > 0 ? selected.join(", ") : "-";
   }
 
   async function confirmDeleteUser() {
@@ -314,6 +364,26 @@ export function AdminUsersClient() {
           <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
             Create
           </button>
+          <div className="rounded-lg border border-black/10 p-3 md:col-span-6">
+            <p className="text-xs font-medium text-black/70">Question field access</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+              {questionFields.map((field) => (
+                <label key={`new-user-field-${field.id}`} className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newUser.questionFieldIds.includes(field.id)}
+                    onChange={() =>
+                      setNewUser((prev) => ({
+                        ...prev,
+                        questionFieldIds: toggleFieldSelection(prev.questionFieldIds, field.id),
+                      }))
+                    }
+                  />
+                  <span>{field.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </form>
       </section>
 
@@ -399,6 +469,7 @@ export function AdminUsersClient() {
             <p className="text-sm">Points: {selectedUserView.points}</p>
             <p className="text-sm">Level: {selectedUserView.level}</p>
             <p className="text-sm">AI Daily Quota: {selectedUserView.aiDailyQuota}</p>
+            <p className="text-sm">Question fields: {getUserFieldNames(selectedUserView)}</p>
             <button
               type="button"
               onClick={() => setSelectedUserView(null)}
@@ -494,6 +565,33 @@ export function AdminUsersClient() {
               placeholder="AI Daily Quota"
               className="w-full rounded border border-black/20 px-2 py-1 text-sm"
             />
+            <div className="rounded border border-black/10 p-2">
+              <p className="text-xs font-medium text-black/70">Question field access</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {questionFields.map((field) => (
+                  <label
+                    key={`edit-user-field-${field.id}`}
+                    className="inline-flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedUserEdit.questionFieldIds.includes(field.id)}
+                      onChange={() =>
+                        setSelectedUserEdit((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                questionFieldIds: toggleFieldSelection(prev.questionFieldIds, field.id),
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <span>{field.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="mt-1 flex gap-2">
               <button
                 type="button"

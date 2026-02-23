@@ -11,6 +11,7 @@ import type { ImageFormat } from "@aws-sdk/client-bedrock-runtime";
 import { createHash } from "node:crypto";
 import { canUseAiModel, incrementDailyAiUsage } from "@/lib/settings";
 import { getQuestionFieldSystemPromptById } from "@/lib/question-fields";
+import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
 type AskRequestBody = {
   prompt?: string;
@@ -172,6 +173,10 @@ export async function POST(request: Request) {
   try {
     let text = "";
     let cached = false;
+    const accessibleFieldIds = new Set(await getUserAccessibleQuestionFieldIds(user.email));
+    if (!accessibleFieldIds.has(parsedInput.fieldId)) {
+      return NextResponse.json({ error: "Selected question field is not accessible." }, { status: 403 });
+    }
     const cachePrompt = buildAskCachePrompt(parsedInput.prompt, parsedInput.fieldId);
     const fieldSystemPrompt = await getQuestionFieldSystemPromptById(parsedInput.fieldId);
     const languageSystemPrompt = `You must answer strictly in ${parsedInput.language}. Do not use other languages.`;

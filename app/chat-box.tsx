@@ -11,6 +11,11 @@ type ChatMessage = {
   createdAt: string;
 };
 
+type QuestionFieldOption = {
+  id: number;
+  name: string;
+};
+
 export function ChatBox() {
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -18,6 +23,8 @@ export function ChatBox() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [responseLanguage, setResponseLanguage] = useState<SupportedLanguage>(DEFAULT_LANGUAGE);
+  const [fieldOptions, setFieldOptions] = useState<QuestionFieldOption[]>([]);
+  const [selectedFieldId, setSelectedFieldId] = useState(1);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const selectedImagePreviewUrl = useMemo(
@@ -59,6 +66,28 @@ export function ChatBox() {
   }
 
   useEffect(() => {
+    async function loadQuestionFields() {
+      // Load question-field options used to select chat context.
+      try {
+        const response = await fetch("/api/question-fields");
+        if (!response.ok) {
+          return;
+        }
+        const body = (await response.json()) as { fields?: QuestionFieldOption[] };
+        const nextFields = body.fields ?? [];
+        setFieldOptions(nextFields);
+        if (nextFields.length > 0) {
+          setSelectedFieldId(nextFields[0].id);
+        }
+      } catch {
+        // Keep default field id if loading field options fails.
+      }
+    }
+
+    loadQuestionFields();
+  }, []);
+
+  useEffect(() => {
     async function loadHistory() {
       setError("");
       setIsLoadingHistory(true);
@@ -92,6 +121,7 @@ export function ChatBox() {
       promptText: trimmedPrompt,
       image: selectedImage,
       language: responseLanguage,
+      fieldId: selectedFieldId,
     });
   }
 
@@ -100,6 +130,7 @@ export function ChatBox() {
     image: File | null;
     // Reuse the shared language union type used by the language selector.
     language: SupportedLanguage;
+    fieldId: number;
   }) {
     setError("");
     setIsLoading(true);
@@ -126,6 +157,7 @@ export function ChatBox() {
       formData.append("prompt", params.promptText);
       formData.append("language", params.language);
       formData.append("source", "ai_chat");
+      formData.append("fieldId", String(params.fieldId));
       if (params.image) {
         formData.append("image", params.image);
       }
@@ -190,7 +222,7 @@ export function ChatBox() {
       {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
 
       <form onSubmit={handleSubmit} className="mt-3 space-y-2">
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <label className="flex min-w-48 flex-col text-xs">
             <span className="mb-1 font-medium text-black/70">Your language</span>
             <select
@@ -206,6 +238,25 @@ export function ChatBox() {
                   {language}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="flex min-w-48 flex-col text-xs">
+            <span className="mb-1 font-medium text-black/70">Question field</span>
+            <select
+              value={selectedFieldId}
+              onChange={(event) => setSelectedFieldId(Number.parseInt(event.target.value || "1", 10))}
+              className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
+              disabled={isLoading || isLoadingHistory || fieldOptions.length === 0}
+            >
+              {fieldOptions.length === 0 ? (
+                <option value={1}>Default</option>
+              ) : (
+                fieldOptions.map((field) => (
+                  <option key={field.id} value={field.id}>
+                    {field.name}
+                  </option>
+                ))
+              )}
             </select>
           </label>
         </div>

@@ -19,7 +19,12 @@ export async function PATCH(request: Request, context: Context) {
     return NextResponse.json({ error: "Invalid field id." }, { status: 400 });
   }
 
-  const body = (await request.json()) as { key?: string; name?: string; systemPrompt?: string };
+  const body = (await request.json()) as {
+    key?: string;
+    name?: string;
+    systemPrompt?: string;
+    explanationPromptTemplate?: string;
+  };
   if (
     (body.key !== undefined && !String(body.key).trim()) ||
     (body.name !== undefined && !String(body.name).trim())
@@ -33,6 +38,10 @@ export async function PATCH(request: Request, context: Context) {
       key: typeof body.key === "string" ? body.key.trim().toLowerCase() : undefined,
       name: typeof body.name === "string" ? body.name.trim() : undefined,
       systemPrompt: typeof body.systemPrompt === "string" ? body.systemPrompt : undefined,
+      explanationPromptTemplate:
+        typeof body.explanationPromptTemplate === "string"
+          ? body.explanationPromptTemplate
+          : undefined,
     });
     if (!updated) {
       return NextResponse.json({ error: "Field not found." }, { status: 404 });

@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     role?: "admin" | "user";
     points?: number;
     aiDailyQuota?: number;
+    questionFieldIds?: number[];
   };
 
   const email = body.email?.trim() ?? "";
@@ -44,6 +45,11 @@ export async function POST(request: Request) {
   const points = typeof body.points === "number" ? body.points : 0;
   const aiDailyQuota =
     typeof body.aiDailyQuota === "number" ? body.aiDailyQuota : undefined;
+  const questionFieldIds = Array.isArray(body.questionFieldIds)
+    ? body.questionFieldIds
+        .map((item) => (Number.isFinite(item) ? Math.trunc(item) : NaN))
+        .filter((item) => Number.isFinite(item) && item > 0)
+    : undefined;
 
   if (!email || !name || !password) {
     return NextResponse.json(
@@ -67,6 +73,12 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  if (Array.isArray(questionFieldIds) && questionFieldIds.length === 0) {
+    return NextResponse.json(
+      { error: "Select at least one question field." },
+      { status: 400 },
+    );
+  }
 
   try {
     const settings = await readAppSettings();
@@ -86,12 +98,16 @@ export async function POST(request: Request) {
       role,
       points,
       aiDailyQuota,
+      questionFieldIds,
     });
     return NextResponse.json({ user: sanitizeUser(user) }, { status: 201 });
   } catch (error) {
     // Preserve duplicate-user semantics while not masking other server errors.
     if (error instanceof Error && error.message === "User already exists") {
       return NextResponse.json({ error: "User already exists." }, { status: 409 });
+    }
+    if (error instanceof Error && error.message === "At least one question field is required") {
+      return NextResponse.json({ error: "Select at least one question field." }, { status: 400 });
     }
     return NextResponse.json({ error: "Failed to create user." }, { status: 500 });
   }

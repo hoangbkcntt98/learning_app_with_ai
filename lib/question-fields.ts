@@ -5,6 +5,7 @@ export type QuestionFieldRecord = {
   key: string;
   name: string;
   systemPrompt: string;
+  explanationPromptTemplate: string;
 };
 
 const DEFAULT_QUESTION_FIELD = {
@@ -12,6 +13,7 @@ const DEFAULT_QUESTION_FIELD = {
   key: "jlpt",
   name: "JLPT",
   systemPrompt: "",
+  explanationPromptTemplate: "",
 };
 
 function mapQuestionField(row: {
@@ -19,6 +21,7 @@ function mapQuestionField(row: {
   key: string;
   name: string;
   systemPrompt: string;
+  explanationPromptTemplate: string;
 }): QuestionFieldRecord {
   // Convert Prisma model into app-level DTO.
   return {
@@ -26,6 +29,7 @@ function mapQuestionField(row: {
     key: row.key,
     name: row.name,
     systemPrompt: row.systemPrompt,
+    explanationPromptTemplate: row.explanationPromptTemplate,
   };
 }
 
@@ -61,13 +65,19 @@ export async function findQuestionFieldById(id: number) {
   return field ? mapQuestionField(field) : null;
 }
 
-export async function createQuestionField(params: { key: string; name: string; systemPrompt?: string }) {
+export async function createQuestionField(params: {
+  key: string;
+  name: string;
+  systemPrompt?: string;
+  explanationPromptTemplate?: string;
+}) {
   // Create a new question field for admin-managed contexts.
   const created = await prisma.questionField.create({
     data: {
       key: params.key.trim(),
       name: params.name.trim(),
       systemPrompt: params.systemPrompt?.trim() ?? "",
+      explanationPromptTemplate: params.explanationPromptTemplate?.trim() ?? "",
     },
   });
   return mapQuestionField(created);
@@ -78,6 +88,7 @@ export async function updateQuestionField(params: {
   key?: string;
   name?: string;
   systemPrompt?: string;
+  explanationPromptTemplate?: string;
 }) {
   // Update one field without changing unspecified values.
   const current = await prisma.questionField.findUnique({
@@ -97,6 +108,10 @@ export async function updateQuestionField(params: {
         typeof params.systemPrompt === "string"
           ? params.systemPrompt.trim()
           : current.systemPrompt,
+      explanationPromptTemplate:
+        typeof params.explanationPromptTemplate === "string"
+          ? params.explanationPromptTemplate.trim()
+          : current.explanationPromptTemplate,
     },
   });
   return mapQuestionField(updated);
@@ -111,6 +126,17 @@ export async function getQuestionFieldSystemPromptById(id: number) {
     },
   });
   return field?.systemPrompt?.trim() ?? "";
+}
+
+export async function getQuestionFieldExplanationTemplateById(id: number) {
+  // Resolve one field-level explanation prompt template for learning ask flow.
+  const field = await prisma.questionField.findUnique({
+    where: { id },
+    select: {
+      explanationPromptTemplate: true,
+    },
+  });
+  return field?.explanationPromptTemplate?.trim() ?? "";
 }
 
 export async function deleteQuestionFieldById(id: number) {

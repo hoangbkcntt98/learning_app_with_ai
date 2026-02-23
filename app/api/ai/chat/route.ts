@@ -13,12 +13,15 @@ import type { BedrockImageInput } from "@/lib/bedrock";
 import type { ImageFormat } from "@aws-sdk/client-bedrock-runtime";
 import { createHash } from "node:crypto";
 import { canUseAiModel, incrementDailyAiUsage } from "@/lib/settings";
+import { getQuestionFieldSystemPromptById } from "@/lib/question-fields";
+import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
 type ChatRequestBody = {
   prompt?: string;
   language?: string;
   forceModel?: boolean;
   source?: string;
+  fieldId?: number;
 };
 
 const MAX_PROMPT_LENGTH = 2000;
@@ -73,6 +76,7 @@ async function parseChatInput(request: Request): Promise<{
   source: "ai_chat" | "explain";
   imageHash: string;
   forceModel: boolean;
+  fieldId: number;
   image?: BedrockImageInput;
 }> {
   // Parse both JSON and multipart requests into one normalized payload.
@@ -84,6 +88,8 @@ async function parseChatInput(request: Request): Promise<{
     const language = normalizeLanguage(String(formData.get("language") ?? ""));
     const source = normalizeSource(String(formData.get("source") ?? ""));
     const forceModel = String(formData.get("forceModel") ?? "").toLowerCase() === "true";
+    const rawFieldId = Number.parseInt(String(formData.get("fieldId") ?? "1"), 10);
+    const fieldId = Number.isFinite(rawFieldId) && rawFieldId > 0 ? rawFieldId : 1;
     const rawImage = formData.get("image");
 
     if (prompt.length > MAX_PROMPT_LENGTH) {
@@ -115,7 +121,16 @@ async function parseChatInput(request: Request): Promise<{
 
     const modelPrompt = prompt || "Please analyze this image.";
     const storagePrompt = imageTag ? `${modelPrompt}\n${imageTag}` : modelPrompt;
-    return { prompt: modelPrompt, storagePrompt, image, language, source, imageHash, forceModel };
+    return {
+      prompt: modelPrompt,
+      storagePrompt,
+      image,
+      language,
+      source,
+      imageHash,
+      forceModel,
+      fieldId,
+    };
   }
 
   const body = (await request.json()) as ChatRequestBody;
@@ -123,6 +138,10 @@ async function parseChatInput(request: Request): Promise<{
   const language = normalizeLanguage(body.language ?? "");
   const source = normalizeSource(body.source ?? "");
   const forceModel = body.forceModel === true;
+  const fieldId =
+    typeof body.fieldId === "number" && Number.isFinite(body.fieldId) && body.fieldId > 0
+      ? Math.trunc(body.fieldId)
+      : 1;
   if (!prompt) {
     throw new Error("prompt is required.");
   }
@@ -130,7 +149,12 @@ async function parseChatInput(request: Request): Promise<{
     throw new Error("prompt is too long (max 2000 characters).");
   }
 
-  return { prompt, storagePrompt: prompt, language, source, imageHash: "", forceModel };
+  return { prompt, storagePrompt: prompt, language, source, imageHash: "", forceModel, fieldId };
+}
+
+function buildChatCachePrompt(prompt: string, fieldId: number) {
+  // Include field id so cache lookup stays scoped to the selected field config.
+  return `[field:${fieldId}] ${prompt}`;
 }
 
 export async function GET(request: Request) {
@@ -178,10 +202,18 @@ export async function POST(request: Request) {
   try {
     let text = "";
     let cached = false;
+    const accessibleFieldIds = new Set(await getUserAccessibleQuestionFieldIds(user.email));
+    if (!accessibleFieldIds.has(parsedInput.fieldId)) {
+      return NextResponse.json({ error: "Selected question field is not accessible." }, { status: 403 });
+    }
+    const cachePrompt = buildChatCachePrompt(parsedInput.prompt, parsedInput.fieldId);
+    const fieldSystemPrompt = await getQuestionFieldSystemPromptById(parsedInput.fieldId);
+    const languageSystemPrompt = `You must answer strictly in ${parsedInput.language}. Do not use other languages.`;
+    const mergedSystemPrompt = [fieldSystemPrompt, languageSystemPrompt].filter(Boolean).join("\n\n");
 
     if (!parsedInput.forceModel) {
       const cachedText = await findCachedAssistantResponse({
-        promptText: parsedInput.prompt,
+        promptText: cachePrompt,
         source: parsedInput.source,
         language: parsedInput.language,
         imageHash: parsedInput.imageHash,
@@ -206,13 +238,13 @@ export async function POST(request: Request) {
 
       text = await generateBedrockText(parsedInput.prompt, {
         image: parsedInput.image,
-        extraSystemPrompt: `You must answer strictly in ${parsedInput.language}. Do not use other languages.`,
+        extraSystemPrompt: mergedSystemPrompt,
       });
       // Count only real model calls; cached responses do not consume quota.
       await incrementDailyAiUsage(user.email);
       await upsertChatPromptCache({
         userEmail: user.email,
-        promptText: parsedInput.prompt,
+        promptText: cachePrompt,
         source: parsedInput.source,
         language: parsedInput.language,
         imageHash: parsedInput.imageHash,

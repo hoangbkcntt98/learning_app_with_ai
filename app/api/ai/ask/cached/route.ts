@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { listCachedAssistantResponses } from "@/lib/chat";
+import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
 type CachedRequestBody = {
   prompt?: string;
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     typeof body.fieldId === "number" && Number.isFinite(body.fieldId) && body.fieldId > 0
       ? Math.trunc(body.fieldId)
       : 1;
+  const accessibleFieldIds = new Set(await getUserAccessibleQuestionFieldIds(user.email));
+  if (!accessibleFieldIds.has(fieldId)) {
+    return NextResponse.json({ error: "Selected question field is not accessible." }, { status: 403 });
+  }
 
   if (!prompt) {
     return NextResponse.json({ error: "prompt is required." }, { status: 400 });

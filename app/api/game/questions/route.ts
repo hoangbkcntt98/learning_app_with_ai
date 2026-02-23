@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
+import { readQuestionFields } from "@/lib/question-fields";
 import { listQuestionIdsFromUserList } from "@/lib/question-lists";
 import { readQuestions, sanitizeQuestion } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
+import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -22,10 +24,14 @@ export async function GET(request: Request) {
       ? Number.parseInt(fieldIdParam, 10)
       : null;
   const questions = await readQuestions();
+  const accessibleFieldIds = new Set(await getUserAccessibleQuestionFieldIds(user.email));
   const hiddenQuestionIds = new Set(
     await listQuestionIdsFromUserList(user.email, "dont_show_again"),
   );
-  const visibleQuestions = questions.filter((question) => !hiddenQuestionIds.has(question.id));
+  const visibleQuestions = questions.filter(
+    (question) =>
+      !hiddenQuestionIds.has(question.id) && accessibleFieldIds.has(question.fieldId),
+  );
   const filtered = visibleQuestions.filter((question) => {
     // Filter by selected field and level when provided.
     const matchesField = fieldId ? question.fieldId === fieldId : true;
@@ -33,12 +39,20 @@ export async function GET(request: Request) {
     return matchesField && matchesLevel;
   });
 
+  const allFields = await readQuestionFields();
+  const fieldMap = new Map(allFields.map((item) => [item.id, item]));
+
   // Return available field/level options for Learning filter dropdowns.
   const fields = Array.from(
     new Map(
       visibleQuestions.map((question) => [
         question.fieldId,
-        { id: question.fieldId, name: question.fieldName },
+        {
+          id: question.fieldId,
+          name: question.fieldName,
+          explanationPromptTemplate:
+            fieldMap.get(question.fieldId)?.explanationPromptTemplate ?? "",
+        },
       ]),
     ).values(),
   ).sort((a, b) => a.name.localeCompare(b.name));

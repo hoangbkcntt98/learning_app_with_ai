@@ -10,6 +10,7 @@ type QuestionField = {
   key: string;
   name: string;
   systemPrompt: string;
+  explanationPromptTemplate: string;
 };
 
 export function AdminQuestionFieldsClient() {
@@ -18,7 +19,12 @@ export function AdminQuestionFieldsClient() {
   const [loadingMessage, setLoadingMessage] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [newField, setNewField] = useState({ key: "", name: "", systemPrompt: "" });
+  const [newField, setNewField] = useState({
+    key: "",
+    name: "",
+    systemPrompt: "",
+    explanationPromptTemplate: "",
+  });
   const [editingField, setEditingField] = useState<QuestionField | null>(null);
   const [deletingField, setDeletingField] = useState<QuestionField | null>(null);
 
@@ -69,6 +75,7 @@ export function AdminQuestionFieldsClient() {
           key: newField.key.trim().toLowerCase(),
           name: newField.name.trim(),
           systemPrompt: newField.systemPrompt,
+          explanationPromptTemplate: newField.explanationPromptTemplate,
         }),
       });
       if (!response.ok) {
@@ -78,7 +85,7 @@ export function AdminQuestionFieldsClient() {
       }
       const body = (await response.json()) as { field: QuestionField };
       setFields((prev) => [...prev, body.field]);
-      setNewField({ key: "", name: "", systemPrompt: "" });
+      setNewField({ key: "", name: "", systemPrompt: "", explanationPromptTemplate: "" });
       setStatus("Question field created.");
     } catch {
       setError("Failed to create field.");
@@ -102,6 +109,7 @@ export function AdminQuestionFieldsClient() {
           key: editingField.key.trim().toLowerCase(),
           name: editingField.name.trim(),
           systemPrompt: editingField.systemPrompt,
+          explanationPromptTemplate: editingField.explanationPromptTemplate,
         }),
       });
       if (!response.ok) {
@@ -192,6 +200,20 @@ export function AdminQuestionFieldsClient() {
             className="rounded-lg border border-black/20 px-3 py-2 text-sm md:col-span-3"
             rows={4}
           />
+          <textarea
+            value={newField.explanationPromptTemplate}
+            onChange={(event) =>
+              setNewField((prev) => ({ ...prev, explanationPromptTemplate: event.target.value }))
+            }
+            placeholder="Explanation prompt template for Learning Ask AI (optional)"
+            className="rounded-lg border border-black/20 px-3 py-2 text-sm md:col-span-3"
+            rows={5}
+          />
+          <p className="text-xs text-black/60 md:col-span-3">
+            Supported variables: {"{{question}}"}, {"{{selectedLabel}}"}, {"{{selectedOption}}"},
+            {" {{correctLabel}}"}, {"{{correctOption}}"}, {"{{allOptions}}"}, {"{{language}}"},
+            {" {{resultStateText}}"}, {"{{explanationInstruction}}"}.
+          </p>
           <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">Create</button>
         </form>
       </section>
@@ -212,6 +234,7 @@ export function AdminQuestionFieldsClient() {
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Key</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Name</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">System prompt</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Explanation template</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Action</th>
               </tr>
             </thead>
@@ -224,6 +247,13 @@ export function AdminQuestionFieldsClient() {
                   <td className="border-b border-black/10 px-3 py-2">
                     {field.systemPrompt ? (
                       <p className="max-w-md truncate">{field.systemPrompt}</p>
+                    ) : (
+                      <span className="text-black/50">-</span>
+                    )}
+                  </td>
+                  <td className="border-b border-black/10 px-3 py-2">
+                    {field.explanationPromptTemplate ? (
+                      <p className="max-w-md truncate">{field.explanationPromptTemplate}</p>
                     ) : (
                       <span className="text-black/50">-</span>
                     )}
@@ -250,7 +280,7 @@ export function AdminQuestionFieldsClient() {
               ))}
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-3 text-sm text-black/60">
+                  <td colSpan={6} className="px-3 py-3 text-sm text-black/60">
                     No fields found.
                   </td>
                 </tr>
@@ -262,7 +292,7 @@ export function AdminQuestionFieldsClient() {
 
       {editingField ? (
         <div className="loading-popup-overlay" role="dialog" aria-modal="true">
-          <div className="loading-popup-card min-w-[320px]">
+          <div className="loading-popup-card w-[min(92vw,820px)]">
             <p className="text-base font-semibold">Edit field</p>
             <input
               value={editingField.key}
@@ -288,6 +318,17 @@ export function AdminQuestionFieldsClient() {
               placeholder="System prompt for this field (optional)"
               className="w-full rounded border border-black/20 px-2 py-1 text-sm"
               rows={5}
+            />
+            <textarea
+              value={editingField.explanationPromptTemplate}
+              onChange={(event) =>
+                setEditingField((prev) =>
+                  prev ? { ...prev, explanationPromptTemplate: event.target.value } : prev,
+                )
+              }
+              placeholder="Explanation prompt template for Learning Ask AI (optional)"
+              className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+              rows={6}
             />
             <div className="mt-1 flex gap-2">
               <button

@@ -1,5 +1,6 @@
 import { hashPassword } from "./auth";
 import { prisma } from "./prisma";
+import { ensureQuestionFields } from "./question-fields";
 
 export type UserSegment = "Free" | "Plus" | "Pro" | "Premium";
 
@@ -15,6 +16,7 @@ export type UserRecord = {
   level: number;
   role: "admin" | "user";
   aiDailyQuota: number;
+  questionFieldIds: number[];
 };
 
 export function isUserSegment(value: string): value is UserSegment {
@@ -70,6 +72,7 @@ function mapUser(row: {
   role: string;
   aiDailyQuota: number | null;
   createdAt?: Date;
+  questionFieldAccesses?: Array<{ questionFieldId: number }>;
 }): UserRecord {
   // Map raw database user row into the typed app-level user record.
   const defaultAiDailyQuota = getDefaultAiDailyQuotaPerUser();
@@ -86,12 +89,59 @@ function mapUser(row: {
       typeof row.aiDailyQuota === "number" && row.aiDailyQuota > 0
         ? row.aiDailyQuota
         : defaultAiDailyQuota,
+    questionFieldIds: Array.from(
+      new Set((row.questionFieldAccesses ?? []).map((item) => item.questionFieldId)),
+    ),
   };
+}
+
+function normalizeQuestionFieldIds(input?: number[]) {
+  // Normalize requested question-field ids into unique positive integers.
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      input
+        .map((item) => (Number.isFinite(item) ? Math.trunc(item) : NaN))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ),
+  );
+}
+
+async function readAllQuestionFieldIds() {
+  // Return all existing question field ids for fallback/default access.
+  await ensureQuestionFields();
+  const fields = await prisma.questionField.findMany({
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+  return fields.map((item) => item.id);
+}
+
+async function resolveRequestedQuestionFieldIds(input?: number[]) {
+  // Use explicit valid ids when provided; otherwise fallback to all fields.
+  const normalized = normalizeQuestionFieldIds(input);
+  if (normalized.length === 0) {
+    return readAllQuestionFieldIds();
+  }
+  const existing = await prisma.questionField.findMany({
+    where: { id: { in: normalized } },
+    select: { id: true },
+  });
+  return Array.from(new Set(existing.map((item) => item.id)));
 }
 
 export async function readUsers(): Promise<UserRecord[]> {
   // Read all users sorted by email for predictable admin listing.
   const users = await prisma.user.findMany({
+    include: {
+      questionFieldAccesses: {
+        select: {
+          questionFieldId: true,
+        },
+      },
+    },
     orderBy: { email: "asc" },
   });
   return users.map(mapUser);
@@ -122,6 +172,13 @@ export async function findUserByEmail(email: string) {
   }
   const user = await prisma.user.findUnique({
     where: { email: normalizedEmail },
+    include: {
+      questionFieldAccesses: {
+        select: {
+          questionFieldId: true,
+        },
+      },
+    },
   });
   return user ? mapUser(user) : null;
 }
@@ -135,6 +192,7 @@ export async function createUser(params: {
   role?: "admin" | "user";
   points?: number;
   aiDailyQuota?: number;
+  questionFieldIds?: number[];
 }) {
   // Create a new user with hashed password and computed starting level.
   const email = params.email.trim().toLowerCase();
@@ -150,6 +208,10 @@ export async function createUser(params: {
     typeof params.avatarUrl === "string" && params.avatarUrl.trim()
       ? params.avatarUrl.trim()
       : null;
+  const questionFieldIds = await resolveRequestedQuestionFieldIds(params.questionFieldIds);
+  if (questionFieldIds.length === 0) {
+    throw new Error("At least one question field is required");
+  }
 
   try {
     const created = await prisma.user.create({
@@ -163,6 +225,18 @@ export async function createUser(params: {
         level,
         role: params.role ?? "user",
         aiDailyQuota,
+        questionFieldAccesses: {
+          createMany: {
+            data: questionFieldIds.map((questionFieldId) => ({ questionFieldId })),
+          },
+        },
+      },
+      include: {
+        questionFieldAccesses: {
+          select: {
+            questionFieldId: true,
+          },
+        },
       },
     });
     return mapUser(created);
@@ -200,6 +274,7 @@ export async function createUserByAdmin(params: {
   role: "admin" | "user";
   points?: number;
   aiDailyQuota?: number;
+  questionFieldIds?: number[];
 }) {
   // Admin wrapper around createUser that requires explicit role input.
   return createUser({
@@ -211,6 +286,7 @@ export async function createUserByAdmin(params: {
     role: params.role,
     points: params.points ?? 0,
     aiDailyQuota: params.aiDailyQuota,
+    questionFieldIds: params.questionFieldIds,
   });
 }
 
@@ -224,6 +300,7 @@ export async function updateUserByAdmin(params: {
   role?: "admin" | "user";
   password?: string;
   aiDailyQuota?: number;
+  questionFieldIds?: number[];
 }) {
   // Admin update path for profile, role, points, optional manual level, and optional password.
   const current = await findUserByEmail(params.email);
@@ -253,22 +330,70 @@ export async function updateUserByAdmin(params: {
     typeof params.aiDailyQuota === "number" && Number.isFinite(params.aiDailyQuota)
       ? Math.max(1, Math.trunc(params.aiDailyQuota))
       : current.aiDailyQuota;
+  const shouldUpdateQuestionFields = Array.isArray(params.questionFieldIds);
+  const nextQuestionFieldIds = shouldUpdateQuestionFields
+    ? await resolveRequestedQuestionFieldIds(params.questionFieldIds)
+    : current.questionFieldIds;
+  if (nextQuestionFieldIds.length === 0) {
+    throw new Error("At least one question field is required");
+  }
 
-  const updated = await prisma.user.update({
-    where: { email: current.email },
-    data: {
-      name: nextName,
-      segment: nextSegment,
-      avatarUrl: nextAvatarUrl,
-      points: nextPoints,
-      level: nextLevel,
-      role: nextRole,
-      passwordHash: nextPasswordHash,
-      aiDailyQuota: nextAiDailyQuota,
-    },
-  });
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({
+      where: { email: current.email },
+      data: {
+        name: nextName,
+        segment: nextSegment,
+        avatarUrl: nextAvatarUrl,
+        points: nextPoints,
+        level: nextLevel,
+        role: nextRole,
+        passwordHash: nextPasswordHash,
+        aiDailyQuota: nextAiDailyQuota,
+      },
+      include: {
+        questionFieldAccesses: {
+          select: {
+            questionFieldId: true,
+          },
+        },
+      },
+    }),
+    ...(shouldUpdateQuestionFields
+      ? [
+          prisma.userQuestionFieldAccess.deleteMany({
+            where: { userEmail: current.email },
+          }),
+          prisma.userQuestionFieldAccess.createMany({
+            data: nextQuestionFieldIds.map((questionFieldId) => ({
+              userEmail: current.email,
+              questionFieldId,
+            })),
+            skipDuplicates: true,
+          }),
+        ]
+      : []),
+  ]);
 
   return mapUser(updated);
+}
+
+export async function getUserAccessibleQuestionFieldIds(email: string) {
+  // Return explicit field access ids, or fallback to all fields when none mapped.
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return [];
+  }
+  const mapped = await prisma.userQuestionFieldAccess.findMany({
+    where: { userEmail: normalizedEmail },
+    select: {
+      questionFieldId: true,
+    },
+  });
+  if (mapped.length > 0) {
+    return Array.from(new Set(mapped.map((item) => item.questionFieldId)));
+  }
+  return readAllQuestionFieldIds();
 }
 
 export async function updateUserAvatar(email: string, avatarUrl: string | null) {
@@ -345,5 +470,6 @@ export function sanitizeUser(user: UserRecord) {
     level: user.level,
     role: user.role,
     aiDailyQuota: user.aiDailyQuota,
+    questionFieldIds: user.questionFieldIds,
   };
 }

@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { listCachedAssistantResponses } from "@/lib/chat";
+import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
 type CachedRequestBody = {
   prompt?: string;
   language?: string;
   source?: string;
+  fieldId?: number;
 };
 
 function normalizeLanguage(input: string): string {
@@ -49,13 +51,22 @@ export async function POST(request: Request) {
   const prompt = body.prompt?.trim() ?? "";
   const language = normalizeLanguage(body.language ?? "");
   const source = normalizeSource(body.source ?? "");
+  const fieldId =
+    typeof body.fieldId === "number" && Number.isFinite(body.fieldId) && body.fieldId > 0
+      ? Math.trunc(body.fieldId)
+      : 1;
+  const accessibleFieldIds = new Set(await getUserAccessibleQuestionFieldIds(user.email));
+  if (!accessibleFieldIds.has(fieldId)) {
+    return NextResponse.json({ error: "Selected question field is not accessible." }, { status: 403 });
+  }
 
   if (!prompt) {
     return NextResponse.json({ error: "prompt is required." }, { status: 400 });
   }
 
+  const cachePrompt = `[field:${fieldId}] ${prompt}`;
   const responses = await listCachedAssistantResponses({
-    promptText: prompt,
+    promptText: cachePrompt,
     source,
     language,
     imageHash: "",

@@ -767,14 +767,20 @@ export function AdminClient() {
             Question management
           </Link>
           <Link
+            href="/admin/reports"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            Report management
+          </Link>
+          <Link
             href="/admin/question-fields"
-            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white sm:col-span-2"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
           >
             Question Field Management
           </Link>
           <Link
             href="/admin/question-levels"
-            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white sm:col-span-2"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
           >
             Question Level Management
           </Link>
