@@ -22,8 +22,22 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json()) as {
     maxRegisteredUsers?: number;
+    aiChatAllowFree?: boolean;
+    aiChatAllowPlus?: boolean;
+    aiChatAllowPro?: boolean;
+    aiChatAllowPremium?: boolean;
+    forumMinLevel?: number;
   };
 
+  if (
+    body.forumMinLevel !== undefined &&
+    (!Number.isFinite(body.forumMinLevel) || body.forumMinLevel < 0)
+  ) {
+    return NextResponse.json(
+      { error: "forumMinLevel must be 0 or a positive number." },
+      { status: 400 },
+    );
+  }
   if (
     body.maxRegisteredUsers !== undefined &&
     (!Number.isFinite(body.maxRegisteredUsers) || body.maxRegisteredUsers <= 0)
@@ -36,6 +50,11 @@ export async function PATCH(request: Request) {
 
   const settings = await updateAppSettings({
     maxRegisteredUsers: body.maxRegisteredUsers,
+    aiChatAllowFree: body.aiChatAllowFree,
+    aiChatAllowPlus: body.aiChatAllowPlus,
+    aiChatAllowPro: body.aiChatAllowPro,
+    aiChatAllowPremium: body.aiChatAllowPremium,
+    forumMinLevel: body.forumMinLevel,
   });
   return NextResponse.json({ settings });
 }

@@ -104,6 +104,21 @@ export async function updateQuestion(params: {
   return mapQuestion(updated);
 }
 
+export async function deleteQuestionByAdmin(id: number) {
+  // Remove one question by id for admin management actions.
+  const current = await findQuestionById(id);
+  if (!current) {
+    return false;
+  }
+
+  await prisma.question.delete({
+    where: {
+      id: current.id,
+    },
+  });
+  return true;
+}
+
 export function sanitizeQuestion(question: QuestionRecord) {
   // Return a student-safe question shape without the correct answer index.
   return {

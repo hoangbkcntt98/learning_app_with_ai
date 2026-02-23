@@ -53,6 +53,9 @@ export function GameClient({
   const [showAnswerFeedbackPopup, setShowAnswerFeedbackPopup] = useState(false);
   const [isLoadingExplanation, setIsLoadingExplanation] = useState(false);
   const [explanationError, setExplanationError] = useState("");
+  const [reviewListStatus, setReviewListStatus] = useState("");
+  const [reviewListError, setReviewListError] = useState("");
+  const [isSavingReviewList, setIsSavingReviewList] = useState(false);
   const [explanationLanguage, setExplanationLanguage] = useState<SupportedLanguage>(
     DEFAULT_LANGUAGE,
   );
@@ -79,6 +82,8 @@ export function GameClient({
       setCurrentIndex(0);
       setShowExplanation(false);
       setExplanationError("");
+      setReviewListStatus("");
+      setReviewListError("");
       setExplanationLanguage(DEFAULT_LANGUAGE);
       setExplanationsByQuestionLanguage({});
       setCachedResponsesByQuestionLanguage({});
@@ -157,6 +162,8 @@ export function GameClient({
     setShowAnswerFeedbackPopup(false);
     setShowExplanation(false);
     setExplanationError("");
+    setReviewListStatus("");
+    setReviewListError("");
     setExplanationLanguage(DEFAULT_LANGUAGE);
     setExplanationsByQuestionLanguage({});
     setCachedResponsesByQuestionLanguage({});
@@ -204,6 +211,40 @@ export function GameClient({
 
     setShowExplanation(true);
     setExplanationError("");
+  }
+
+  async function addCurrentQuestionToReviewList() {
+    if (!currentQuestion || isSavingReviewList) {
+      return;
+    }
+
+    setReviewListStatus("");
+    setReviewListError("");
+    setIsSavingReviewList(true);
+    try {
+      const response = await fetch("/api/game/lists", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          questionId: currentQuestion.id,
+          type: "review",
+        }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setReviewListError(body.error ?? "Could not add to review list.");
+        return;
+      }
+
+      setReviewListStatus("Added to review list.");
+    } catch {
+      setReviewListError("Failed to add to review list.");
+    } finally {
+      setIsSavingReviewList(false);
+    }
   }
 
   async function applyExplanationLanguage() {
@@ -459,7 +500,17 @@ export function GameClient({
               >
                 Explain It
               </button>
+              <button
+                type="button"
+                onClick={addCurrentQuestionToReviewList}
+                disabled={isSavingReviewList || !currentQuestion}
+                className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 disabled:opacity-50"
+              >
+                {isSavingReviewList ? "Saving..." : "+Review List"}
+              </button>
             </div>
+            {reviewListStatus ? <p className="mt-2 text-sm text-green-700">{reviewListStatus}</p> : null}
+            {reviewListError ? <p className="mt-2 text-sm text-red-600">{reviewListError}</p> : null}
 
             {answerResult && isLastQuestion ? (
               <p className="mt-3 text-sm text-black/70">

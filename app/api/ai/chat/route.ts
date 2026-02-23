@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { generateBedrockText } from "@/lib/bedrock";
+import { checkUserFeatureAccess } from "@/lib/feature-access";
 import {
   createChatExchange,
   findCachedAssistantResponse,
@@ -138,6 +139,10 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  const access = await checkUserFeatureAccess(user, "ai_chat");
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const limitParam = searchParams.get("limit");
@@ -156,6 +161,10 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  const access = await checkUserFeatureAccess(user, "ai_chat");
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   let parsedInput: Awaited<ReturnType<typeof parseChatInput>>;

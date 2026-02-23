@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { listCachedAssistantResponses } from "@/lib/chat";
 
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  const access = await checkUserFeatureAccess(user, "ai_chat");
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const body = (await request.json()) as CachedRequestBody;

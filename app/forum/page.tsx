@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FeatureAccessWarning } from "@/app/feature-access-warning";
+import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { ForumClient } from "./forum-client";
 
@@ -8,6 +10,10 @@ export default async function ForumPage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");
+  }
+  const access = await checkUserFeatureAccess(user, "forum");
+  if (!access.allowed) {
+    return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
 
   return (

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Image from "next/image";
+import Link from "next/link";
+import { getCurrentUser } from "@/lib/session";
 import "./globals.css";
+import { LogoutButton } from "./logout-button";
 import { ThemeToggle } from "./theme-toggle";
 
 const geistSans = Geist({
@@ -23,11 +27,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Resolve auth state once in layout to render a shared top navigation bar.
+  const user = await getCurrentUser();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -48,6 +55,25 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {user ? (
+          <header className="sticky top-0 z-40 w-full border-b border-black/10 bg-white/90 px-4 py-2 backdrop-blur dark:bg-neutral-900/90">
+            <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+              {/* Keep brand logo at the left side like a top app menu bar. */}
+              <Link href="/" className="inline-flex items-center gap-2">
+                <Image
+                  src="/images/logo.png"
+                  alt="BuBu Learning logo"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-lg object-cover"
+                  priority
+                />
+                <span className="text-sm font-semibold">BuBu Learning</span>
+              </Link>
+              <LogoutButton />
+            </div>
+          </header>
+        ) : null}
         <ThemeToggle />
         {children}
       </body>

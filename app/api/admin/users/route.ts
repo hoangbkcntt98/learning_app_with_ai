@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { countUsers, createUserByAdmin, readUsers, sanitizeUser } from "@/lib/users";
+import {
+  countUsers,
+  createUserByAdmin,
+  isUserSegment,
+  readUsers,
+  sanitizeUser,
+} from "@/lib/users";
 import { getCurrentAdminUser } from "@/lib/session";
 import { readAppSettings } from "@/lib/settings";
 
@@ -23,6 +29,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     email?: string;
     name?: string;
+    segment?: string;
     password?: string;
     role?: "admin" | "user";
     points?: number;
@@ -31,6 +38,7 @@ export async function POST(request: Request) {
 
   const email = body.email?.trim() ?? "";
   const name = body.name?.trim() ?? "";
+  const segment = String(body.segment ?? "Free").trim();
   const password = body.password ?? "";
   const role = body.role === "admin" ? "admin" : "user";
   const points = typeof body.points === "number" ? body.points : 0;
@@ -42,6 +50,9 @@ export async function POST(request: Request) {
       { error: "email, name and password are required." },
       { status: 400 },
     );
+  }
+  if (!isUserSegment(segment)) {
+    return NextResponse.json({ error: "segment must be Free, Plus, Pro, or Premium." }, { status: 400 });
   }
 
   if (password.length < 8) {
@@ -70,6 +81,7 @@ export async function POST(request: Request) {
     const user = await createUserByAdmin({
       email,
       name,
+      segment,
       password,
       role,
       points,

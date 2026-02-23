@@ -1,11 +1,18 @@
 import { prisma } from "./prisma";
+import type { UserSegment } from "./users";
 
 export type AppSettings = {
   maxRegisteredUsers: number;
+  aiChatAllowFree: boolean;
+  aiChatAllowPlus: boolean;
+  aiChatAllowPro: boolean;
+  aiChatAllowPremium: boolean;
+  forumMinLevel: number;
 };
 
 const SETTINGS_ROW_ID = 1;
 const DEFAULT_MAX_REGISTERED_USERS = 1000;
+const DEFAULT_FORUM_MIN_LEVEL = 2;
 
 function normalizeLimit(value: number, fallback: number): number {
   // Ensure limits stay as safe positive integers.
@@ -27,6 +34,11 @@ export async function readAppSettings(): Promise<AppSettings> {
         id: SETTINGS_ROW_ID,
         aiDailyQuotaPerUser: 20,
         maxRegisteredUsers: DEFAULT_MAX_REGISTERED_USERS,
+        aiChatAllowFree: false,
+        aiChatAllowPlus: true,
+        aiChatAllowPro: true,
+        aiChatAllowPremium: true,
+        forumMinLevel: DEFAULT_FORUM_MIN_LEVEL,
       },
     });
   }
@@ -36,6 +48,11 @@ export async function readAppSettings(): Promise<AppSettings> {
       config.maxRegisteredUsers,
       DEFAULT_MAX_REGISTERED_USERS,
     ),
+    aiChatAllowFree: config.aiChatAllowFree,
+    aiChatAllowPlus: config.aiChatAllowPlus,
+    aiChatAllowPro: config.aiChatAllowPro,
+    aiChatAllowPremium: config.aiChatAllowPremium,
+    forumMinLevel: normalizeLimit(config.forumMinLevel, DEFAULT_FORUM_MIN_LEVEL),
   };
 }
 
@@ -47,6 +64,20 @@ export async function updateAppSettings(input: Partial<AppSettings>): Promise<Ap
     typeof input.maxRegisteredUsers === "number"
       ? normalizeLimit(input.maxRegisteredUsers, current.maxRegisteredUsers)
       : current.maxRegisteredUsers;
+  const nextAiChatAllowFree =
+    typeof input.aiChatAllowFree === "boolean" ? input.aiChatAllowFree : current.aiChatAllowFree;
+  const nextAiChatAllowPlus =
+    typeof input.aiChatAllowPlus === "boolean" ? input.aiChatAllowPlus : current.aiChatAllowPlus;
+  const nextAiChatAllowPro =
+    typeof input.aiChatAllowPro === "boolean" ? input.aiChatAllowPro : current.aiChatAllowPro;
+  const nextAiChatAllowPremium =
+    typeof input.aiChatAllowPremium === "boolean"
+      ? input.aiChatAllowPremium
+      : current.aiChatAllowPremium;
+  const nextForumMinLevel =
+    typeof input.forumMinLevel === "number"
+      ? normalizeLimit(input.forumMinLevel, current.forumMinLevel)
+      : current.forumMinLevel;
 
   const updated = await prisma.appConfig.upsert({
     where: { id: SETTINGS_ROW_ID },
@@ -54,15 +85,51 @@ export async function updateAppSettings(input: Partial<AppSettings>): Promise<Ap
       id: SETTINGS_ROW_ID,
       aiDailyQuotaPerUser: 20,
       maxRegisteredUsers: nextMaxRegisteredUsers,
+      aiChatAllowFree: nextAiChatAllowFree,
+      aiChatAllowPlus: nextAiChatAllowPlus,
+      aiChatAllowPro: nextAiChatAllowPro,
+      aiChatAllowPremium: nextAiChatAllowPremium,
+      forumMinLevel: nextForumMinLevel,
     },
     update: {
       maxRegisteredUsers: nextMaxRegisteredUsers,
+      aiChatAllowFree: nextAiChatAllowFree,
+      aiChatAllowPlus: nextAiChatAllowPlus,
+      aiChatAllowPro: nextAiChatAllowPro,
+      aiChatAllowPremium: nextAiChatAllowPremium,
+      forumMinLevel: nextForumMinLevel,
     },
   });
 
   return {
     maxRegisteredUsers: updated.maxRegisteredUsers,
+    aiChatAllowFree: updated.aiChatAllowFree,
+    aiChatAllowPlus: updated.aiChatAllowPlus,
+    aiChatAllowPro: updated.aiChatAllowPro,
+    aiChatAllowPremium: updated.aiChatAllowPremium,
+    forumMinLevel: updated.forumMinLevel,
   };
+}
+
+export async function canAccessAiChatBySegment(segment: UserSegment) {
+  // Resolve AI Chat permission from admin-configured segment flags.
+  const settings = await readAppSettings();
+  if (segment === "Premium") {
+    return settings.aiChatAllowPremium;
+  }
+  if (segment === "Pro") {
+    return settings.aiChatAllowPro;
+  }
+  if (segment === "Plus") {
+    return settings.aiChatAllowPlus;
+  }
+  return settings.aiChatAllowFree;
+}
+
+export async function canAccessForumByLevel(level: number) {
+  // Resolve forum permission from admin-configured minimum user level.
+  const settings = await readAppSettings();
+  return level >= settings.forumMinLevel;
 }
 
 function getUtcDayKey(date = new Date()): string {

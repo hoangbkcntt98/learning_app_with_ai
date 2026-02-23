@@ -1,16 +1,32 @@
 import { hashPassword } from "./auth";
 import { prisma } from "./prisma";
 
+export type UserSegment = "Free" | "Plus" | "Pro" | "Premium";
+
+const allowedSegments: UserSegment[] = ["Free", "Plus", "Pro", "Premium"];
+
 export type UserRecord = {
   email: string;
   passwordHash: string;
   name: string;
+  segment: UserSegment;
   avatarUrl: string | null;
   points: number;
   level: number;
   role: "admin" | "user";
   aiDailyQuota: number;
 };
+
+export function isUserSegment(value: string): value is UserSegment {
+  // Validate user segment values used by admin API/forms.
+  return allowedSegments.includes(value as UserSegment);
+}
+
+function normalizeUserSegment(value?: string | null): UserSegment {
+  // Keep unknown/empty segment values on a safe default.
+  const input = (value ?? "").trim();
+  return isUserSegment(input) ? input : "Free";
+}
 
 function getDefaultAiDailyQuotaPerUser() {
   // Read fallback per-user daily AI quota from env with a safe default.
@@ -47,6 +63,7 @@ function mapUser(row: {
   email: string;
   passwordHash: string;
   name: string;
+  segment?: string;
   avatarUrl?: string | null;
   points: number;
   level: number;
@@ -60,6 +77,7 @@ function mapUser(row: {
     email: row.email,
     passwordHash: row.passwordHash,
     name: row.name,
+    segment: normalizeUserSegment(row.segment),
     avatarUrl: row.avatarUrl ?? null,
     points: row.points,
     level: row.level,
@@ -112,6 +130,7 @@ export async function createUser(params: {
   email: string;
   password: string;
   name: string;
+  segment?: UserSegment;
   avatarUrl?: string | null;
   role?: "admin" | "user";
   points?: number;
@@ -138,6 +157,7 @@ export async function createUser(params: {
         email,
         passwordHash,
         name: params.name.trim() || email.split("@")[0],
+        segment: params.segment ?? "Free",
         avatarUrl,
         points,
         level,
@@ -175,6 +195,7 @@ export async function createUserByAdmin(params: {
   email: string;
   password: string;
   name: string;
+  segment?: UserSegment;
   avatarUrl?: string | null;
   role: "admin" | "user";
   points?: number;
@@ -185,6 +206,7 @@ export async function createUserByAdmin(params: {
     email: params.email,
     password: params.password,
     name: params.name,
+    segment: params.segment,
     avatarUrl: params.avatarUrl,
     role: params.role,
     points: params.points ?? 0,
@@ -195,13 +217,15 @@ export async function createUserByAdmin(params: {
 export async function updateUserByAdmin(params: {
   email: string;
   name?: string;
+  segment?: UserSegment;
   avatarUrl?: string | null;
   points?: number;
+  level?: number;
   role?: "admin" | "user";
   password?: string;
   aiDailyQuota?: number;
 }) {
-  // Admin update path for profile, role, points, and optional password.
+  // Admin update path for profile, role, points, optional manual level, and optional password.
   const current = await findUserByEmail(params.email);
   if (!current) {
     return null;
@@ -209,9 +233,14 @@ export async function updateUserByAdmin(params: {
 
   const nextPoints =
     typeof params.points === "number" ? normalizePoints(params.points) : current.points;
-  const nextLevel = calculateLevelFromPoints(nextPoints);
+  // Allow admin to override level directly; otherwise derive level from points.
+  const nextLevel =
+    typeof params.level === "number" && Number.isFinite(params.level)
+      ? Math.max(0, Math.trunc(params.level))
+      : calculateLevelFromPoints(nextPoints);
   const nextName =
     typeof params.name === "string" ? params.name.trim() || current.name : current.name;
+  const nextSegment = params.segment ?? current.segment;
   const nextAvatarUrl =
     typeof params.avatarUrl === "string"
       ? params.avatarUrl.trim() || null
@@ -229,6 +258,7 @@ export async function updateUserByAdmin(params: {
     where: { email: current.email },
     data: {
       name: nextName,
+      segment: nextSegment,
       avatarUrl: nextAvatarUrl,
       points: nextPoints,
       level: nextLevel,
@@ -289,11 +319,27 @@ export async function updateUserProfile(params: {
   return mapUser(updated);
 }
 
+export async function deleteUserByAdmin(email: string) {
+  // Remove one user account by email for admin management actions.
+  const current = await findUserByEmail(email);
+  if (!current) {
+    return false;
+  }
+
+  await prisma.user.delete({
+    where: {
+      email: current.email,
+    },
+  });
+  return true;
+}
+
 export function sanitizeUser(user: UserRecord) {
   // Remove sensitive fields before returning user data to clients.
   return {
     email: user.email,
     name: user.name,
+    segment: user.segment,
     avatarUrl: user.avatarUrl,
     points: user.points,
     level: user.level,

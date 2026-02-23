@@ -11,6 +11,7 @@ model User {
   email        String         @id
   passwordHash String         @map("password_hash")
   name         String
+  segment      String         @default("Free")
   avatarUrl    String?        @map("avatar_url")
   points       Int            @default(0)
   level        Int            @default(0)
@@ -23,6 +24,8 @@ model User {
   dailyAiUsages DailyAiUsage[]
   forumPosts   ForumPost[]
   forumComments ForumComment[]
+  questionLists UserQuestionList[]
+  questionNotes UserQuestionNote[]
 
   @@map("users")
 }
@@ -37,6 +40,8 @@ model Question {
   option4      String   @map("option_4")
   correctIndex Int      @map("correct_index")
   createdAt    DateTime @default(now()) @map("created_at")
+  userLists    UserQuestionList[]
+  userNotes    UserQuestionNote[]
 
   @@map("questions")
 }
@@ -121,6 +126,11 @@ model AppConfig {
   id                   Int      @id
   aiDailyQuotaPerUser  Int      @default(20) @map("ai_daily_quota_per_user")
   maxRegisteredUsers   Int      @default(1000) @map("max_registered_users")
+  aiChatAllowFree      Boolean  @default(false) @map("ai_chat_allow_free")
+  aiChatAllowPlus      Boolean  @default(true) @map("ai_chat_allow_plus")
+  aiChatAllowPro       Boolean  @default(true) @map("ai_chat_allow_pro")
+  aiChatAllowPremium   Boolean  @default(true) @map("ai_chat_allow_premium")
+  forumMinLevel        Int      @default(2) @map("forum_min_level")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@map("app_config")
@@ -138,4 +148,50 @@ model DailyAiUsage {
   @@unique([userEmail, usageDate], map: "uq_daily_ai_usage_user_date")
   @@index([usageDate], map: "idx_daily_ai_usage_date")
   @@map("daily_ai_usage")
+}
+
+model UserQuestionList {
+  id         BigInt   @id @default(autoincrement())
+  userEmail  String   @map("user_email")
+  questionId Int      @map("question_id")
+  listType   String   @map("list_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userEmail, questionId, listType], map: "uq_user_question_list_item")
+  @@index([userEmail, listType, createdAt(sort: Desc)], map: "idx_user_question_list_lookup")
+  @@map("user_question_list")
+}
+
+model UserQuestionNote {
+  id         BigInt   @id @default(autoincrement())
+  userEmail  String   @map("user_email")
+  questionId Int      @map("question_id")
+  note       String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userEmail, questionId], map: "uq_user_question_note")
+  @@index([userEmail, updatedAt(sort: Desc)], map: "idx_user_question_note_lookup")
+  @@map("user_question_notes")
+}
+
+model FeatureAccessRule {
+  featureId      Int      @id @map("feature_id")
+  featureKey     String   @unique @map("feature_key")
+  featureName    String   @map("feature_name")
+  routePath      String   @map("route_path")
+  minLevel       Int      @default(0) @map("min_level")
+  allowFree      Boolean  @default(true) @map("allow_free")
+  allowPlus      Boolean  @default(true) @map("allow_plus")
+  allowPro       Boolean  @default(true) @map("allow_pro")
+  allowPremium   Boolean  @default(true) @map("allow_premium")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([featureKey], map: "idx_feature_access_rule_key")
+  @@map("feature_access_rules")
 }

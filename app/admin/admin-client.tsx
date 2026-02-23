@@ -1,216 +1,110 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { LoadingPopup } from "../loading-popup";
 
-type User = {
-  email: string;
-  name: string;
-  points: number;
-  level: number;
-  role: "admin" | "user";
-  aiDailyQuota: number;
-};
-
-type Question = {
-  id: number;
-  level: "N5" | "N4" | "N3" | "N2" | "N1";
-  prompt: string;
-  options: [string, string, string, string];
-  correctIndex: number;
-};
-
 type AppSettings = {
   maxRegisteredUsers: number;
+  aiDailyQuotaPerUser?: number;
+};
+
+type FeatureAccessRule = {
+  featureId: number;
+  featureKey: string;
+  featureName: string;
+  routePath: string;
+  minLevel: number;
+  allowFree: boolean;
+  allowPlus: boolean;
+  allowPro: boolean;
+  allowPremium: boolean;
+};
+
+type FeatureFormDraft = {
+  featureName: string;
+  featureKey: string;
+  routePath: string;
+  minLevel: string;
+  allowFree: boolean;
+  allowPlus: boolean;
+  allowPro: boolean;
+  allowPremium: boolean;
 };
 
 export function AdminClient() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
     maxRegisteredUsers: 1000,
+  });
+  const [featureRules, setFeatureRules] = useState<FeatureAccessRule[]>([]);
+  const [selectedFeatureId, setSelectedFeatureId] = useState<number>(1);
+  const [selectedFeatureRule, setSelectedFeatureRule] = useState<FeatureAccessRule | null>(null);
+  const [newFeatureDraft, setNewFeatureDraft] = useState<FeatureFormDraft>({
+    featureName: "",
+    featureKey: "",
+    routePath: "",
+    minLevel: "0",
+    allowFree: true,
+    allowPlus: true,
+    allowPro: true,
+    allowPremium: true,
   });
   const [allUsersAiDailyQuotaInput, setAllUsersAiDailyQuotaInput] = useState("20");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("");
 
-  const [newUser, setNewUser] = useState({
-    email: "",
-    name: "",
-    password: "",
-    role: "user" as "admin" | "user",
-    points: 0,
-  });
-  const [newQuestion, setNewQuestion] = useState({
-    level: "N5" as "N5" | "N4" | "N3" | "N2" | "N1",
-    prompt: "",
-    options: ["", "", "", ""] as [string, string, string, string],
-    correctIndex: 0,
-  });
+  function syncFeatureSelection(nextRules: FeatureAccessRule[]) {
+    // Keep selected feature stable after create/delete/update operations.
+    if (nextRules.length === 0) {
+      setSelectedFeatureId(0);
+      setSelectedFeatureRule(null);
+      return;
+    }
+
+    const matched = nextRules.find((item) => item.featureId === selectedFeatureId);
+    const nextSelected = matched ?? nextRules[0];
+    setSelectedFeatureId(nextSelected.featureId);
+    setSelectedFeatureRule(nextSelected);
+  }
 
   useEffect(() => {
-    async function loadAll() {
+    async function loadSettings() {
       setError("");
-      setLoadingMessage("Loading admin data...");
+      setLoadingMessage("Loading settings...");
       try {
-        // Load all admin datasets in one request batch for faster UI readiness.
-        const [usersResponse, questionsResponse, settingsResponse] = await Promise.all([
-          fetch("/api/admin/users"),
-          fetch("/api/admin/questions"),
+        // Load base settings and feature access rules in one batch.
+        const [settingsResponse, featuresResponse] = await Promise.all([
           fetch("/api/admin/settings"),
+          fetch("/api/admin/features"),
         ]);
-
-        if (!usersResponse.ok || !questionsResponse.ok || !settingsResponse.ok) {
-          setError("Failed to load admin data.");
+        if (!settingsResponse.ok || !featuresResponse.ok) {
+          setError("Failed to load settings.");
           return;
         }
-
-        const usersBody = (await usersResponse.json()) as { users: User[] };
-        const questionsBody = (await questionsResponse.json()) as { questions: Question[] };
         const settingsBody = (await settingsResponse.json()) as { settings: AppSettings };
-        setUsers(usersBody.users ?? []);
-        setQuestions(questionsBody.questions ?? []);
+        const featuresBody = (await featuresResponse.json()) as { features: FeatureAccessRule[] };
         setSettings(settingsBody.settings);
-        // Initialize the bulk-update input from first user or env fallback default.
-        const firstUserQuota = usersBody.users?.[0]?.aiDailyQuota;
-        setAllUsersAiDailyQuotaInput(String(firstUserQuota ?? 20));
+        setAllUsersAiDailyQuotaInput(String(settingsBody.settings.aiDailyQuotaPerUser ?? 20));
+        const rules = featuresBody.features ?? [];
+        setFeatureRules(rules);
+        if (rules.length === 0) {
+          setSelectedFeatureId(0);
+          setSelectedFeatureRule(null);
+        } else {
+          setSelectedFeatureId(rules[0].featureId);
+          setSelectedFeatureRule(rules[0]);
+        }
       } catch {
-        setError("Failed to load admin data.");
+        setError("Failed to load settings.");
       } finally {
         setLoadingMessage("");
       }
     }
 
-    loadAll();
+    loadSettings();
   }, []);
-
-  async function createUser(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setStatus("");
-    setLoadingMessage("Creating user...");
-    try {
-      const response = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newUser),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        setError(body.error ?? "Failed to create user.");
-        return;
-      }
-      const body = (await response.json()) as { user: User };
-      setUsers((prev) => [...prev, body.user]);
-      setStatus("User created.");
-      setNewUser({
-        email: "",
-        name: "",
-        password: "",
-        role: "user",
-        points: 0,
-      });
-    } catch {
-      setError("Failed to create user.");
-    } finally {
-      setLoadingMessage("");
-    }
-  }
-
-  async function saveUser(user: User) {
-    setError("");
-    setStatus("");
-    setLoadingMessage(`Saving ${user.email}...`);
-    try {
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.email)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: user.name,
-          points: user.points,
-          role: user.role,
-          aiDailyQuota: user.aiDailyQuota,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        setError(body.error ?? "Failed to update user.");
-        return;
-      }
-      const body = (await response.json()) as { user: User };
-      setUsers((prev) =>
-        prev.map((item) => (item.email === body.user.email ? body.user : item)),
-      );
-      setStatus(`Updated ${user.email}.`);
-    } catch {
-      setError("Failed to update user.");
-    } finally {
-      setLoadingMessage("");
-    }
-  }
-
-  async function createQuestion(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setStatus("");
-    setLoadingMessage("Creating question...");
-    try {
-      const response = await fetch("/api/admin/questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newQuestion),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        setError(body.error ?? "Failed to create question.");
-        return;
-      }
-      const body = (await response.json()) as { question: Question };
-      setQuestions((prev) => [...prev, body.question]);
-      setStatus("Question created.");
-      setNewQuestion({
-        level: "N5",
-        prompt: "",
-        options: ["", "", "", ""],
-        correctIndex: 0,
-      });
-    } catch {
-      setError("Failed to create question.");
-    } finally {
-      setLoadingMessage("");
-    }
-  }
-
-  async function saveQuestion(question: Question) {
-    setError("");
-    setStatus("");
-    setLoadingMessage(`Saving question ${question.id}...`);
-    try {
-      const response = await fetch(`/api/admin/questions/${encodeURIComponent(question.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          level: question.level,
-          prompt: question.prompt,
-          options: question.options,
-          correctIndex: question.correctIndex,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        setError(body.error ?? "Failed to update question.");
-        return;
-      }
-      setStatus(`Updated question ${question.id}.`);
-    } catch {
-      setError("Failed to update question.");
-    } finally {
-      setLoadingMessage("");
-    }
-  }
 
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -230,7 +124,6 @@ export function AdminClient() {
         setError(body.error ?? "Failed to save settings.");
         return;
       }
-
       const body = (await response.json()) as { settings: AppSettings };
       setSettings(body.settings);
       setStatus("Settings updated.");
@@ -264,17 +157,159 @@ export function AdminClient() {
         setError(body.error ?? "Failed to update AI quota for all users.");
         return;
       }
-
-      // Update local state so admin sees the new quota instantly in user rows.
-      setUsers((prev) =>
-        prev.map((user) => ({
-          ...user,
-          aiDailyQuota: parsedQuota,
-        })),
-      );
       setStatus("AI daily quota updated for all users.");
     } catch {
       setError("Failed to update AI quota for all users.");
+    } finally {
+      setLoadingMessage("");
+    }
+  }
+
+  function handleFeatureSelectionChange(value: number) {
+    setSelectedFeatureId(value);
+    const matched = featureRules.find((item) => item.featureId === value) ?? null;
+    setSelectedFeatureRule(matched);
+  }
+
+  async function saveFeatureRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFeatureRule) {
+      return;
+    }
+    setError("");
+    setStatus("");
+    setLoadingMessage(`Saving ${selectedFeatureRule.featureName} rule...`);
+    try {
+      const response = await fetch("/api/admin/features", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          featureId: selectedFeatureRule.featureId,
+          featureKey: selectedFeatureRule.featureKey,
+          featureName: selectedFeatureRule.featureName,
+          routePath: selectedFeatureRule.routePath,
+          minLevel: selectedFeatureRule.minLevel,
+          allowFree: selectedFeatureRule.allowFree,
+          allowPlus: selectedFeatureRule.allowPlus,
+          allowPro: selectedFeatureRule.allowPro,
+          allowPremium: selectedFeatureRule.allowPremium,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setError(body.error ?? "Failed to save feature rule.");
+        return;
+      }
+      const body = (await response.json()) as { feature: FeatureAccessRule };
+      setFeatureRules((prev) => {
+        const next = prev.map((item) => (item.featureId === body.feature.featureId ? body.feature : item));
+        syncFeatureSelection(next);
+        return next;
+      });
+      setStatus(`${body.feature.featureName} restriction updated.`);
+    } catch {
+      setError("Failed to save feature rule.");
+    } finally {
+      setLoadingMessage("");
+    }
+  }
+
+  async function createFeatureRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setStatus("");
+
+    const minLevel = Number.parseInt(newFeatureDraft.minLevel || "0", 10);
+    if (!newFeatureDraft.featureName.trim() || !newFeatureDraft.featureKey.trim() || !newFeatureDraft.routePath.trim()) {
+      setError("Feature name, key, and route are required.");
+      return;
+    }
+    if (!newFeatureDraft.routePath.trim().startsWith("/")) {
+      setError("Route must start with '/'.");
+      return;
+    }
+    if (!Number.isFinite(minLevel) || minLevel < 0) {
+      setError("Minimum level must be 0 or above.");
+      return;
+    }
+
+    setLoadingMessage("Creating feature...");
+    try {
+      const response = await fetch("/api/admin/features", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          featureName: newFeatureDraft.featureName.trim(),
+          featureKey: newFeatureDraft.featureKey.trim(),
+          routePath: newFeatureDraft.routePath.trim(),
+          minLevel,
+          allowFree: newFeatureDraft.allowFree,
+          allowPlus: newFeatureDraft.allowPlus,
+          allowPro: newFeatureDraft.allowPro,
+          allowPremium: newFeatureDraft.allowPremium,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setError(body.error ?? "Failed to create feature.");
+        return;
+      }
+      const body = (await response.json()) as { feature: FeatureAccessRule };
+      setFeatureRules((prev) => {
+        const next = [...prev, body.feature].sort((a, b) => a.featureId - b.featureId);
+        setSelectedFeatureId(body.feature.featureId);
+        setSelectedFeatureRule(body.feature);
+        return next;
+      });
+      setNewFeatureDraft({
+        featureName: "",
+        featureKey: "",
+        routePath: "",
+        minLevel: "0",
+        allowFree: true,
+        allowPlus: true,
+        allowPro: true,
+        allowPremium: true,
+      });
+      setStatus(`${body.feature.featureName} created.`);
+    } catch {
+      setError("Failed to create feature.");
+    } finally {
+      setLoadingMessage("");
+    }
+  }
+
+  async function removeSelectedFeatureRule() {
+    if (!selectedFeatureRule) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete feature "${selectedFeatureRule.featureName}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setError("");
+    setStatus("");
+    setLoadingMessage(`Deleting ${selectedFeatureRule.featureName}...`);
+    try {
+      const response = await fetch("/api/admin/features", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ featureId: selectedFeatureRule.featureId }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        setError(body.error ?? "Failed to delete feature.");
+        return;
+      }
+      setFeatureRules((prev) => {
+        const next = prev.filter((item) => item.featureId !== selectedFeatureRule.featureId);
+        syncFeatureSelection(next);
+        return next;
+      });
+      setStatus("Feature deleted.");
+    } catch {
+      setError("Failed to delete feature.");
     } finally {
       setLoadingMessage("");
     }
@@ -333,6 +368,288 @@ export function AdminClient() {
       </section>
 
       <section className="mt-6 rounded-xl border border-black/10 p-4">
+        <h2 className="text-lg font-semibold">Feature access restriction</h2>
+        <form onSubmit={saveFeatureRule} className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Feature</span>
+            <select
+              value={selectedFeatureId}
+              onChange={(event) => handleFeatureSelectionChange(Number.parseInt(event.target.value, 10))}
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            >
+              {featureRules.map((feature) => (
+                <option key={feature.featureId} value={feature.featureId}>
+                  {`${feature.featureId} - ${feature.featureName}`}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Feature name</span>
+            <input
+              value={selectedFeatureRule?.featureName ?? ""}
+              onChange={(event) =>
+                setSelectedFeatureRule((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        featureName: event.target.value,
+                      }
+                    : prev,
+                )
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Feature key</span>
+            <input
+              value={selectedFeatureRule?.featureKey ?? ""}
+              onChange={(event) =>
+                setSelectedFeatureRule((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        featureKey: event.target.value,
+                      }
+                    : prev,
+                )
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Route path</span>
+            <input
+              value={selectedFeatureRule?.routePath ?? ""}
+              onChange={(event) =>
+                setSelectedFeatureRule((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        routePath: event.target.value,
+                      }
+                    : prev,
+                )
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Minimum level</span>
+            <input
+              type="number"
+              min={0}
+              value={selectedFeatureRule?.minLevel ?? 0}
+              onChange={(event) =>
+                setSelectedFeatureRule((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        minLevel: Number.parseInt(event.target.value || "0", 10),
+                      }
+                    : prev,
+                )
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <div className="md:col-span-2">
+            <p className="mb-2 text-xs font-medium text-black/70">Allowed segments</p>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedFeatureRule?.allowFree ?? false}
+                  onChange={(event) =>
+                    setSelectedFeatureRule((prev) =>
+                      prev ? { ...prev, allowFree: event.target.checked } : prev,
+                    )
+                  }
+                />
+                Free
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedFeatureRule?.allowPlus ?? false}
+                  onChange={(event) =>
+                    setSelectedFeatureRule((prev) =>
+                      prev ? { ...prev, allowPlus: event.target.checked } : prev,
+                    )
+                  }
+                />
+                Plus
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedFeatureRule?.allowPro ?? false}
+                  onChange={(event) =>
+                    setSelectedFeatureRule((prev) =>
+                      prev ? { ...prev, allowPro: event.target.checked } : prev,
+                    )
+                  }
+                />
+                Pro
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedFeatureRule?.allowPremium ?? false}
+                  onChange={(event) =>
+                    setSelectedFeatureRule((prev) =>
+                      prev ? { ...prev, allowPremium: event.target.checked } : prev,
+                    )
+                  }
+                />
+                Premium
+              </label>
+            </div>
+          </div>
+
+          <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
+            Save feature rule
+          </button>
+          <button
+            type="button"
+            onClick={removeSelectedFeatureRule}
+            disabled={!selectedFeatureRule}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-red-300"
+          >
+            Delete feature
+          </button>
+        </form>
+
+        <form onSubmit={createFeatureRule} className="mt-6 grid gap-3 border-t border-black/10 pt-4 md:grid-cols-2">
+          <p className="md:col-span-2 text-sm font-semibold">Create new feature</p>
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Feature name</span>
+            <input
+              value={newFeatureDraft.featureName}
+              onChange={(event) =>
+                setNewFeatureDraft((prev) => ({
+                  ...prev,
+                  featureName: event.target.value,
+                }))
+              }
+              placeholder="Learning"
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Feature key</span>
+            <input
+              value={newFeatureDraft.featureKey}
+              onChange={(event) =>
+                setNewFeatureDraft((prev) => ({
+                  ...prev,
+                  featureKey: event.target.value,
+                }))
+              }
+              placeholder="learning"
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Route path</span>
+            <input
+              value={newFeatureDraft.routePath}
+              onChange={(event) =>
+                setNewFeatureDraft((prev) => ({
+                  ...prev,
+                  routePath: event.target.value,
+                }))
+              }
+              placeholder="/play"
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">Minimum level</span>
+            <input
+              type="number"
+              min={0}
+              value={newFeatureDraft.minLevel}
+              onChange={(event) =>
+                setNewFeatureDraft((prev) => ({
+                  ...prev,
+                  minLevel: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <div className="md:col-span-2">
+            <p className="mb-2 text-xs font-medium text-black/70">Allowed segments</p>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newFeatureDraft.allowFree}
+                  onChange={(event) =>
+                    setNewFeatureDraft((prev) => ({
+                      ...prev,
+                      allowFree: event.target.checked,
+                    }))
+                  }
+                />
+                Free
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newFeatureDraft.allowPlus}
+                  onChange={(event) =>
+                    setNewFeatureDraft((prev) => ({
+                      ...prev,
+                      allowPlus: event.target.checked,
+                    }))
+                  }
+                />
+                Plus
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newFeatureDraft.allowPro}
+                  onChange={(event) =>
+                    setNewFeatureDraft((prev) => ({
+                      ...prev,
+                      allowPro: event.target.checked,
+                    }))
+                  }
+                />
+                Pro
+              </label>
+              <label className="inline-flex items-center gap-2 rounded border border-black/15 px-2 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newFeatureDraft.allowPremium}
+                  onChange={(event) =>
+                    setNewFeatureDraft((prev) => ({
+                      ...prev,
+                      allowPremium: event.target.checked,
+                    }))
+                  }
+                />
+                Premium
+              </label>
+            </div>
+          </div>
+
+          <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
+            Create feature
+          </button>
+        </form>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-black/10 p-4">
         <h2 className="text-lg font-semibold">Setting for all user</h2>
         <form onSubmit={updateAiDailyQuotaForAllUsers} className="mt-3 grid gap-3 md:grid-cols-3">
           <label className="block md:max-w-xs">
@@ -354,354 +671,20 @@ export function AdminClient() {
       </section>
 
       <section className="mt-6 rounded-xl border border-black/10 p-4">
-        <h2 className="text-lg font-semibold">Add user</h2>
-        <form onSubmit={createUser} className="mt-3 grid gap-3 md:grid-cols-5">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-black/70">Email</span>
-            <input
-              required
-              placeholder="Email"
-              value={newUser.email}
-              onChange={(event) => setNewUser((prev) => ({ ...prev, email: event.target.value }))}
-              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-black/70">Name</span>
-            <input
-              required
-              placeholder="Name"
-              value={newUser.name}
-              onChange={(event) => setNewUser((prev) => ({ ...prev, name: event.target.value }))}
-              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-black/70">Password</span>
-            <input
-              required
-              minLength={8}
-              type="password"
-              placeholder="Password"
-              value={newUser.password}
-              onChange={(event) =>
-                setNewUser((prev) => ({ ...prev, password: event.target.value }))
-              }
-              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-black/70">Role</span>
-            <select
-              value={newUser.role}
-              onChange={(event) =>
-                setNewUser((prev) => ({
-                  ...prev,
-                  role: event.target.value as "admin" | "user",
-                }))
-              }
-              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-            >
-              <option value="user">user</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-          <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
-            Create user
-          </button>
-        </form>
-      </section>
-
-      <section className="mt-6 rounded-xl border border-black/10 p-4">
-        <h2 className="text-lg font-semibold">Edit users</h2>
-        <div className="mt-3 space-y-3">
-          {users.map((user, index) => (
-            <div key={user.email} className="grid gap-2 rounded-lg border border-black/10 p-3 md:grid-cols-8">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">Email</span>
-                <input
-                  value={user.email}
-                  disabled
-                  className="w-full rounded border border-black/10 bg-black/5 px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">Name</span>
-                <input
-                  value={user.name}
-                  onChange={(event) =>
-                    setUsers((prev) => {
-                      const next = [...prev];
-                      next[index] = { ...next[index], name: event.target.value };
-                      return next;
-                    })
-                  }
-                  className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">Points</span>
-                <input
-                  type="number"
-                  value={user.points}
-                  onChange={(event) =>
-                    setUsers((prev) => {
-                      const next = [...prev];
-                      next[index] = {
-                        ...next[index],
-                        points: Number.parseInt(event.target.value || "0", 10),
-                      };
-                      return next;
-                    })
-                  }
-                  className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">Role</span>
-                <select
-                  value={user.role}
-                  onChange={(event) =>
-                    setUsers((prev) => {
-                      const next = [...prev];
-                      next[index] = {
-                        ...next[index],
-                        role: event.target.value as "admin" | "user",
-                      };
-                      return next;
-                    })
-                  }
-                  className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">AI Daily Quota</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={user.aiDailyQuota}
-                  onChange={(event) =>
-                    setUsers((prev) => {
-                      const next = [...prev];
-                      next[index] = {
-                        ...next[index],
-                        aiDailyQuota: Number.parseInt(event.target.value || "1", 10),
-                      };
-                      return next;
-                    })
-                  }
-                  className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">Level</span>
-                <input
-                  value={user.level}
-                  disabled
-                  className="w-full rounded border border-black/10 bg-black/5 px-2 py-1 text-sm"
-                />
-              </label>
-              <button
-                onClick={() => saveUser(user)}
-                className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white"
-              >
-                Save
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-xl border border-black/10 p-4">
-        <h2 className="text-lg font-semibold">Add question</h2>
-        <form onSubmit={createQuestion} className="mt-3 space-y-3">
-          <div className="grid gap-3 md:grid-cols-4">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-black/70">JLPT level</span>
-              <select
-                value={newQuestion.level}
-                onChange={(event) =>
-                  setNewQuestion((prev) => ({
-                    ...prev,
-                    level: event.target.value as "N5" | "N4" | "N3" | "N2" | "N1",
-                  }))
-                }
-                className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-              >
-                <option value="N5">N5</option>
-                <option value="N4">N4</option>
-                <option value="N3">N3</option>
-                <option value="N2">N2</option>
-                <option value="N1">N1</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-black/70">Correct option index</span>
-              <input
-                type="number"
-                min={0}
-                max={3}
-                value={newQuestion.correctIndex}
-                onChange={(event) =>
-                  setNewQuestion((prev) => ({
-                    ...prev,
-                    correctIndex: Number.parseInt(event.target.value || "0", 10),
-                  }))
-                }
-                className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-black/70">Prompt</span>
-            <input
-              required
-              placeholder="Prompt"
-              value={newQuestion.prompt}
-              onChange={(event) =>
-                setNewQuestion((prev) => ({ ...prev, prompt: event.target.value }))
-              }
-              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-            />
-          </label>
-          <div className="grid gap-3 md:grid-cols-2">
-            {newQuestion.options.map((option, index) => (
-              <label key={`new-option-${index}`} className="block">
-                <span className="mb-1 block text-xs font-medium text-black/70">
-                  Option {index + 1}
-                </span>
-                <input
-                  required
-                  placeholder={`Option ${index + 1}`}
-                  value={option}
-                  onChange={(event) =>
-                    setNewQuestion((prev) => {
-                      const next = [...prev.options] as [string, string, string, string];
-                      next[index] = event.target.value;
-                      return { ...prev, options: next };
-                    })
-                  }
-                  className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
-                />
-              </label>
-            ))}
-          </div>
-          <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
-            Create question
-          </button>
-        </form>
-      </section>
-
-      <section className="mt-6 rounded-xl border border-black/10 p-4">
-        <h2 className="text-lg font-semibold">Edit questions</h2>
-        <div className="mt-3 space-y-4">
-          {questions.map((question, index) => (
-            <div key={question.id} className="rounded-lg border border-black/10 p-3">
-              <div className="grid gap-2 md:grid-cols-4">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-black/70">Question ID</span>
-                  <input
-                    value={question.id}
-                    disabled
-                    className="w-full rounded border border-black/10 bg-black/5 px-2 py-1 text-sm"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-black/70">JLPT level</span>
-                  <select
-                    value={question.level}
-                    onChange={(event) =>
-                      setQuestions((prev) => {
-                        const next = [...prev];
-                        next[index] = {
-                          ...next[index],
-                          level: event.target.value as "N5" | "N4" | "N3" | "N2" | "N1",
-                        };
-                        return next;
-                      })
-                    }
-                    className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                  >
-                    <option value="N5">N5</option>
-                    <option value="N4">N4</option>
-                    <option value="N3">N3</option>
-                    <option value="N2">N2</option>
-                    <option value="N1">N1</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-black/70">Correct option index</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={3}
-                    value={question.correctIndex}
-                    onChange={(event) =>
-                      setQuestions((prev) => {
-                        const next = [...prev];
-                        next[index] = {
-                          ...next[index],
-                          correctIndex: Number.parseInt(event.target.value || "0", 10),
-                        };
-                        return next;
-                      })
-                    }
-                    className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                  />
-                </label>
-                <button
-                  onClick={() => saveQuestion(question)}
-                  className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white"
-                >
-                  Save question
-                </button>
-              </div>
-              <label className="mt-2 block">
-                <span className="mb-1 block text-xs font-medium text-black/70">Prompt</span>
-                <input
-                  value={question.prompt}
-                  onChange={(event) =>
-                    setQuestions((prev) => {
-                      const next = [...prev];
-                      next[index] = { ...next[index], prompt: event.target.value };
-                      return next;
-                    })
-                  }
-                  className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                />
-              </label>
-              <div className="mt-2 grid gap-2 md:grid-cols-2">
-                {question.options.map((option, optionIndex) => (
-                  <label key={`${question.id}-option-${optionIndex}`} className="block">
-                    <span className="mb-1 block text-xs font-medium text-black/70">
-                      Option {optionIndex + 1}
-                    </span>
-                    <input
-                      value={option}
-                      onChange={(event) =>
-                        setQuestions((prev) => {
-                          const next = [...prev];
-                          const nextOptions = [...next[index].options] as [
-                            string,
-                            string,
-                            string,
-                            string,
-                          ];
-                          nextOptions[optionIndex] = event.target.value;
-                          next[index] = { ...next[index], options: nextOptions };
-                          return next;
-                        })
-                      }
-                      className="w-full rounded border border-black/20 px-2 py-1 text-sm"
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
+        {/* Navigate to dedicated management routes as requested. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Link
+            href="/admin/users"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            User management
+          </Link>
+          <Link
+            href="/admin/questions"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            Question management
+          </Link>
         </div>
       </section>
     </main>

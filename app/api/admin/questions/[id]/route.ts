@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  deleteQuestionByAdmin,
   type JlptLevel,
   isJlptLevel,
   sanitizeQuestionForAdmin,
@@ -72,4 +73,24 @@ export async function PATCH(request: Request, context: Context) {
   }
 
   return NextResponse.json({ question: sanitizeQuestionForAdmin(updated) });
+}
+
+export async function DELETE(_request: Request, context: Context) {
+  const admin = await getCurrentAdminUser();
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const params = await context.params;
+  const id = Number.parseInt(decodeURIComponent(params.id), 10);
+  if (!Number.isFinite(id) || id < 1) {
+    return NextResponse.json({ error: "Invalid question id." }, { status: 400 });
+  }
+
+  const deleted = await deleteQuestionByAdmin(Math.trunc(id));
+  if (!deleted) {
+    return NextResponse.json({ error: "Question not found." }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
 }

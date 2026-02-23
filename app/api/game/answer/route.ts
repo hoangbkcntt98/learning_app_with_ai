@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
+import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { addPointsToUser } from "@/lib/users";
 import { findQuestionById } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
+import { addQuestionToUserList } from "@/lib/question-lists";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  const access = await checkUserFeatureAccess(user, "learning");
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const body = (await request.json()) as {
@@ -43,6 +49,11 @@ export async function POST(request: Request) {
 
   if (!updatedUser) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  if (!isCorrect) {
+    // Automatically track incorrect answers for later practice.
+    await addQuestionToUserList(user.email, question.id, "incorrect");
   }
 
   return NextResponse.json({

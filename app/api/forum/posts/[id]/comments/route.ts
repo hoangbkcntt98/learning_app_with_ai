@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { createForumComment, sanitizeForumComment } from "@/lib/forum";
 
@@ -15,6 +16,10 @@ export async function POST(
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  const access = await checkUserFeatureAccess(user, "forum");
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message }, { status: 403 });
   }
 
   const { id } = await context.params;
