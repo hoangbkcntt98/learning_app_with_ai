@@ -32,9 +32,11 @@ type AnswerResult = {
   correct: boolean;
   correctIndex: number;
   points: number;
+  gold: number;
   level: number;
   delta: number;
   bonusPoints?: number;
+  goldDelta?: number;
   streak?: number;
 };
 
@@ -126,11 +128,13 @@ function fillTemplate(template: string, variables: Record<string, string>) {
 
 export function GameClient({
   initialPoints,
+  initialGold,
   initialLevel,
   isAdmin,
   summaryUser,
 }: {
   initialPoints: number;
+  initialGold: number;
   initialLevel: number;
   isAdmin: boolean;
   summaryUser: UserSummary;
@@ -146,6 +150,7 @@ export function GameClient({
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [points, setPoints] = useState(initialPoints);
+  const [gold, setGold] = useState(initialGold);
   const [userLevel, setUserLevel] = useState(initialLevel);
   const [error, setError] = useState("");
   const [showExplanation, setShowExplanation] = useState(false);
@@ -242,6 +247,7 @@ export function GameClient({
           fields: QuestionField[];
           levels: QuestionLevel[];
           points: number;
+          gold?: number;
           level: number;
         };
         const nextFields = body.fields ?? [];
@@ -250,6 +256,7 @@ export function GameClient({
         setLevels(nextLevels);
         setQuestions(body.questions ?? []);
         setPoints(body.points ?? initialPoints);
+        setGold(typeof body.gold === "number" ? body.gold : initialGold);
         setUserLevel(body.level ?? initialLevel);
         if (nextFields.length > 0 && selectedFieldId === null) {
           setSelectedFieldId(nextFields[0].id);
@@ -270,7 +277,7 @@ export function GameClient({
     }
 
     loadQuestions();
-  }, [selectedFieldId, selectedLevel, initialLevel, initialPoints]);
+  }, [selectedFieldId, selectedLevel, initialGold, initialLevel, initialPoints]);
 
   useEffect(() => {
     return () => {
@@ -310,6 +317,7 @@ export function GameClient({
       const body = (await response.json()) as AnswerResult;
       setAnswerResult(body);
       setPoints(body.points);
+      setGold(body.gold);
       setUserLevel(body.level);
       setShowAnswerFeedbackPopup(true);
     } catch {
@@ -756,7 +764,11 @@ export function GameClient({
       ) : answerResult ? (
         <FeedbackPopup
           isOpen={showAnswerFeedbackPopup}
-          title={answerResult.correct ? "Correct! +5 points." : "Incorrect. -5 points."}
+          title={
+            answerResult.correct
+              ? `Correct! +${Math.max(0, answerResult.delta)} points, +${answerResult.goldDelta ?? 0} gold.`
+              : `Incorrect. ${answerResult.delta} points.`
+          }
           message={answerResult.correct ? "すごいね！" : "ざんねんね！"}
           imageSrc={answerResult.correct ? "/images/correct.png" : "/images/incorrect.png"}
           imageAlt={answerResult.correct ? "Correct answer celebration" : "Incorrect answer reaction"}
@@ -769,6 +781,7 @@ export function GameClient({
         user={{
           ...summaryUser,
           points,
+          gold,
           level: userLevel,
         }}
       />

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import type { UserSegment } from "./users";
+import { getUserActiveStoreEffects } from "./store";
 
 export type AppSettings = {
   maxRegisteredUsers: number;
@@ -159,21 +160,26 @@ export async function canUseAiModel(userEmail: string) {
     : 20;
   const user = await prisma.user.findUnique({
     where: { email: userEmail },
-    select: { aiDailyQuota: true },
+    select: { aiDailyQuota: true, aiExtraUsageCredits: true },
   });
   const limit =
     typeof user?.aiDailyQuota === "number" && user.aiDailyQuota > 0
       ? user.aiDailyQuota
       : defaultQuota;
+  const storeEffects = await getUserActiveStoreEffects(userEmail);
+  const bonusFromActiveItems = Math.max(0, storeEffects.extraAiDailyQuota);
+  const oneTimeCredits =
+    typeof user?.aiExtraUsageCredits === "number" ? Math.max(0, user.aiExtraUsageCredits) : 0;
+  const effectiveLimit = limit + bonusFromActiveItems + oneTimeCredits;
   const usageDate = getUtcDayKey();
   const used = await getDailyAiUsageCount(userEmail, usageDate);
-  const remaining = Math.max(0, limit - used);
+  const remaining = Math.max(0, effectiveLimit - used);
 
   return {
     allowed: remaining > 0,
     used,
     remaining,
-    limit,
+    limit: effectiveLimit,
     usageDate,
   };
 }
@@ -181,22 +187,68 @@ export async function canUseAiModel(userEmail: string) {
 export async function incrementDailyAiUsage(userEmail: string) {
   // Consume one quota unit after a successful model call.
   const usageDate = getUtcDayKey();
-  await prisma.dailyAiUsage.upsert({
-    where: {
-      userEmail_usageDate: {
+  await prisma.$transaction(async (tx) => {
+    const [settings, user, effects] = await Promise.all([
+      tx.user.findUnique({
+        where: { email: userEmail },
+        select: { aiDailyQuota: true, aiExtraUsageCredits: true },
+      }),
+      tx.dailyAiUsage.findUnique({
+        where: {
+          userEmail_usageDate: {
+            userEmail,
+            usageDate,
+          },
+        },
+      }),
+      getUserActiveStoreEffects(userEmail, tx),
+    ]);
+
+    const rawDefaultQuota = process.env.DEFAULT_AI_DAILY_QUOTA_PER_USER?.trim();
+    const parsedDefaultQuota = rawDefaultQuota ? Number.parseInt(rawDefaultQuota, 10) : Number.NaN;
+    const defaultQuota =
+      Number.isFinite(parsedDefaultQuota) && parsedDefaultQuota > 0 ? parsedDefaultQuota : 20;
+    const baseLimit =
+      typeof settings?.aiDailyQuota === "number" && settings.aiDailyQuota > 0
+        ? settings.aiDailyQuota
+        : defaultQuota;
+    const equippedBonus = Math.max(0, effects.extraAiDailyQuota);
+    const freeLimitBeforeCredits = baseLimit + equippedBonus;
+    const currentUsed = user?.count ?? 0;
+
+    await tx.dailyAiUsage.upsert({
+      where: {
+        userEmail_usageDate: {
+          userEmail,
+          usageDate,
+        },
+      },
+      create: {
         userEmail,
         usageDate,
+        count: 1,
       },
-    },
-    create: {
-      userEmail,
-      usageDate,
-      count: 1,
-    },
-    update: {
-      count: {
-        increment: 1,
+      update: {
+        count: {
+          increment: 1,
+        },
       },
-    },
+    });
+
+    if (currentUsed >= freeLimitBeforeCredits) {
+      await tx.user.updateMany({
+        where: {
+          email: userEmail,
+          aiExtraUsageCredits: {
+            gt: 0,
+          },
+        },
+        data: {
+          aiExtraUsageCredits: {
+            decrement: 1,
+          },
+        },
+      });
+    }
   });
 }

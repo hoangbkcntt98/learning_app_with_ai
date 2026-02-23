@@ -8,11 +8,7 @@ type ProfileUser = {
   avatarUrl: string | null;
 };
 
-function getInitialLetter(name: string, email: string) {
-  // Build a simple fallback avatar label when no image exists.
-  const source = name.trim() || email.trim();
-  return source ? source[0].toUpperCase() : "U";
-}
+const defaultAvatarUrl = "/images/logo.png";
 
 export function ProfileClient({ initialUser }: { initialUser: ProfileUser }) {
   const [user, setUser] = useState(initialUser);
@@ -101,18 +97,13 @@ export function ProfileClient({ initialUser }: { initialUser: ProfileUser }) {
         <div className="flex flex-col items-center">
           {/* Keep avatar in a circular frame for profile screen consistency. */}
           <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-2 border-black/25 bg-black/5">
-            {user.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.avatarUrl}
-                alt={`${user.name} avatar`}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="text-3xl font-semibold text-black/70">
-                {getInitialLetter(user.name, user.email)}
-              </span>
-            )}
+            {/* Use app default avatar when user has not uploaded one. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={user.avatarUrl || defaultAvatarUrl}
+              alt={`${user.name} avatar`}
+              className="h-full w-full object-cover"
+            />
           </div>
 
           <form onSubmit={uploadAvatar} className="mt-3 w-full space-y-2">

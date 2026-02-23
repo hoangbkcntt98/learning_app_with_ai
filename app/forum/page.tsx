@@ -25,6 +25,7 @@ export default async function ForumPage() {
           segment: user.segment,
           avatarUrl: user.avatarUrl,
           points: user.points,
+          gold: user.gold,
           level: user.level,
         }}
       />

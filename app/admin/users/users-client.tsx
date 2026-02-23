@@ -10,6 +10,7 @@ type User = {
   name: string;
   segment: "Free" | "Plus" | "Pro" | "Premium";
   points: number;
+  gold: number;
   level: number;
   role: "admin" | "user";
   aiDailyQuota: number;
@@ -91,6 +92,7 @@ export function AdminUsersClient() {
     password: "",
     role: "user" as "admin" | "user",
     points: 0,
+    gold: 0,
     questionFieldIds: [] as number[],
   });
   const [selectedUserView, setSelectedUserView] = useState<User | null>(null);
@@ -183,6 +185,7 @@ export function AdminUsersClient() {
         password: "",
         role: "user",
         points: 0,
+        gold: 0,
         questionFieldIds: questionFields.map((field) => field.id),
       });
     } catch {
@@ -211,6 +214,7 @@ export function AdminUsersClient() {
           name: selectedUserEdit.name,
           segment: selectedUserEdit.segment,
           points: selectedUserEdit.points,
+          gold: selectedUserEdit.gold,
           level: selectedUserEdit.level,
           role: selectedUserEdit.role,
           aiDailyQuota: selectedUserEdit.aiDailyQuota,
@@ -421,6 +425,7 @@ export function AdminUsersClient() {
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Segment</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Role</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Points</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Gold</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Level</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Quota</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Action</th>
@@ -434,6 +439,7 @@ export function AdminUsersClient() {
                   <td className="border-b border-black/10 px-3 py-2">{user.segment}</td>
                   <td className="border-b border-black/10 px-3 py-2">{user.role}</td>
                   <td className="border-b border-black/10 px-3 py-2">{user.points}</td>
+                  <td className="border-b border-black/10 px-3 py-2">{user.gold}</td>
                   <td className="border-b border-black/10 px-3 py-2">{user.level}</td>
                   <td className="border-b border-black/10 px-3 py-2">{user.aiDailyQuota}</td>
                   <td className="border-b border-black/10 px-3 py-2">
@@ -447,7 +453,7 @@ export function AdminUsersClient() {
               ))}
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-sm text-black/60" colSpan={8}>
+                  <td className="px-3 py-3 text-sm text-black/60" colSpan={9}>
                     No users found for current search/filter.
                   </td>
                 </tr>
@@ -467,6 +473,7 @@ export function AdminUsersClient() {
             <p className="text-sm">Segment: {selectedUserView.segment}</p>
             <p className="text-sm">Role: {selectedUserView.role}</p>
             <p className="text-sm">Points: {selectedUserView.points}</p>
+            <p className="text-sm">Gold: {selectedUserView.gold}</p>
             <p className="text-sm">Level: {selectedUserView.level}</p>
             <p className="text-sm">AI Daily Quota: {selectedUserView.aiDailyQuota}</p>
             <p className="text-sm">Question fields: {getUserFieldNames(selectedUserView)}</p>
@@ -527,6 +534,18 @@ export function AdminUsersClient() {
                 )
               }
               placeholder="Points"
+              className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+            />
+            <input
+              type="number"
+              min={0}
+              value={selectedUserEdit.gold}
+              onChange={(event) =>
+                setSelectedUserEdit((prev) =>
+                  prev ? { ...prev, gold: Number.parseInt(event.target.value || "0", 10) } : prev,
+                )
+              }
+              placeholder="Gold"
               className="w-full rounded border border-black/20 px-2 py-1 text-sm"
             />
             <input

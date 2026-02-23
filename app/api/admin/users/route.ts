@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     password?: string;
     role?: "admin" | "user";
     points?: number;
+    gold?: number;
     aiDailyQuota?: number;
     questionFieldIds?: number[];
   };
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   const role = body.role === "admin" ? "admin" : "user";
   const points = typeof body.points === "number" ? body.points : 0;
+  const gold = typeof body.gold === "number" ? body.gold : 0;
   const aiDailyQuota =
     typeof body.aiDailyQuota === "number" ? body.aiDailyQuota : undefined;
   const questionFieldIds = Array.isArray(body.questionFieldIds)
@@ -59,6 +61,12 @@ export async function POST(request: Request) {
   }
   if (!isUserSegment(segment)) {
     return NextResponse.json({ error: "segment must be Free, Plus, Pro, or Premium." }, { status: 400 });
+  }
+  if (typeof gold === "number" && (!Number.isFinite(gold) || gold < 0)) {
+    return NextResponse.json(
+      { error: "gold must be a non-negative number." },
+      { status: 400 },
+    );
   }
 
   if (password.length < 8) {
@@ -97,6 +105,7 @@ export async function POST(request: Request) {
       password,
       role,
       points,
+      gold,
       aiDailyQuota,
       questionFieldIds,
     });

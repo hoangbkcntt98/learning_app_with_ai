@@ -67,6 +67,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     points: user.points,
+    gold: user.gold,
     level: user.level,
     fields,
     levels,

@@ -784,6 +784,12 @@ export function AdminClient() {
           >
             Question Level Management
           </Link>
+          <Link
+            href="/admin/store-products"
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            Store Management
+          </Link>
         </div>
       </section>
     </main>

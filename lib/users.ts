@@ -1,6 +1,7 @@
 import { hashPassword } from "./auth";
 import { prisma } from "./prisma";
 import { ensureQuestionFields } from "./question-fields";
+import { getUserActiveStoreEffects } from "./store";
 
 export type UserSegment = "Free" | "Plus" | "Pro" | "Premium";
 
@@ -13,6 +14,8 @@ export type UserRecord = {
   segment: UserSegment;
   avatarUrl: string | null;
   points: number;
+  gold: number;
+  aiExtraUsageCredits: number;
   level: number;
   correctStreak: number;
   role: "admin" | "user";
@@ -69,6 +72,8 @@ function mapUser(row: {
   segment?: string;
   avatarUrl?: string | null;
   points: number;
+  gold?: number;
+  aiExtraUsageCredits?: number;
   level: number;
   correctStreak?: number;
   role: string;
@@ -85,6 +90,11 @@ function mapUser(row: {
     segment: normalizeUserSegment(row.segment),
     avatarUrl: row.avatarUrl ?? null,
     points: row.points,
+    gold: typeof row.gold === "number" && Number.isFinite(row.gold) ? Math.max(0, Math.trunc(row.gold)) : 0,
+    aiExtraUsageCredits:
+      typeof row.aiExtraUsageCredits === "number" && Number.isFinite(row.aiExtraUsageCredits)
+        ? Math.max(0, Math.trunc(row.aiExtraUsageCredits))
+        : 0,
     level: row.level,
     correctStreak:
       typeof row.correctStreak === "number" && Number.isFinite(row.correctStreak)
@@ -197,12 +207,17 @@ export async function createUser(params: {
   avatarUrl?: string | null;
   role?: "admin" | "user";
   points?: number;
+  gold?: number;
   aiDailyQuota?: number;
   questionFieldIds?: number[];
 }) {
   // Create a new user with hashed password and computed starting level.
   const email = params.email.trim().toLowerCase();
   const points = normalizePoints(params.points);
+  const gold =
+    typeof params.gold === "number" && Number.isFinite(params.gold)
+      ? Math.max(0, Math.trunc(params.gold))
+      : 0;
   const level = calculateLevelFromPoints(points);
   const passwordHash = hashPassword(params.password);
   const defaultAiDailyQuota = getDefaultAiDailyQuotaPerUser();
@@ -228,6 +243,7 @@ export async function createUser(params: {
         segment: params.segment ?? "Free",
         avatarUrl,
         points,
+        gold,
         level,
         role: params.role ?? "user",
         aiDailyQuota,
@@ -275,6 +291,7 @@ export type ApplyGameAnswerResult = {
   user: UserRecord;
   delta: number;
   bonusPoints: number;
+  goldDelta: number;
   streak: number;
 };
 
@@ -304,9 +321,14 @@ export async function applyGameAnswerResult(
     }
 
     const baseDelta = isCorrect ? 5 : -5;
+    const storeEffects = await getUserActiveStoreEffects(normalizedEmail, tx);
+    const goldDelta = isCorrect ? 1 + storeEffects.bonusGoldOnCorrect : 0;
+    const extraPointDelta = isCorrect ? storeEffects.bonusPointsOnCorrect : 0;
+    const totalPointDelta = baseDelta + extraPointDelta;
     const previousStreak =
       typeof current.correctStreak === "number" ? Math.max(0, current.correctStreak) : 0;
-    let nextPoints = current.points + baseDelta;
+    let nextPoints = current.points + totalPointDelta;
+    const nextGold = Math.max(0, (typeof current.gold === "number" ? current.gold : 0) + goldDelta);
     let nextLevel = calculateLevelFromPoints(nextPoints);
     let nextStreak = isCorrect ? previousStreak + 1 : 0;
     let bonusPoints = 0;
@@ -323,6 +345,7 @@ export async function applyGameAnswerResult(
       where: { email: normalizedEmail },
       data: {
         points: nextPoints,
+        gold: nextGold,
         level: nextLevel,
         correctStreak: nextStreak,
       },
@@ -337,8 +360,9 @@ export async function applyGameAnswerResult(
 
     return {
       user: mapUser(updated),
-      delta: baseDelta,
+      delta: totalPointDelta,
       bonusPoints,
+      goldDelta,
       streak: nextStreak,
     };
   });
@@ -352,6 +376,7 @@ export async function createUserByAdmin(params: {
   avatarUrl?: string | null;
   role: "admin" | "user";
   points?: number;
+  gold?: number;
   aiDailyQuota?: number;
   questionFieldIds?: number[];
 }) {
@@ -364,6 +389,7 @@ export async function createUserByAdmin(params: {
     avatarUrl: params.avatarUrl,
     role: params.role,
     points: params.points ?? 0,
+    gold: params.gold ?? 0,
     aiDailyQuota: params.aiDailyQuota,
     questionFieldIds: params.questionFieldIds,
   });
@@ -375,6 +401,7 @@ export async function updateUserByAdmin(params: {
   segment?: UserSegment;
   avatarUrl?: string | null;
   points?: number;
+  gold?: number;
   level?: number;
   role?: "admin" | "user";
   password?: string;
@@ -389,6 +416,10 @@ export async function updateUserByAdmin(params: {
 
   const nextPoints =
     typeof params.points === "number" ? normalizePoints(params.points) : current.points;
+  const nextGold =
+    typeof params.gold === "number" && Number.isFinite(params.gold)
+      ? Math.max(0, Math.trunc(params.gold))
+      : current.gold;
   // Allow admin to override level directly; otherwise derive level from points.
   const nextLevel =
     typeof params.level === "number" && Number.isFinite(params.level)
@@ -425,6 +456,7 @@ export async function updateUserByAdmin(params: {
         segment: nextSegment,
         avatarUrl: nextAvatarUrl,
         points: nextPoints,
+        gold: nextGold,
         level: nextLevel,
         role: nextRole,
         passwordHash: nextPasswordHash,
@@ -546,6 +578,8 @@ export function sanitizeUser(user: UserRecord) {
     segment: user.segment,
     avatarUrl: user.avatarUrl,
     points: user.points,
+    gold: user.gold,
+    aiExtraUsageCredits: user.aiExtraUsageCredits,
     level: user.level,
     correctStreak: user.correctStreak,
     role: user.role,

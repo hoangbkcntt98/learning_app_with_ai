@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       email: user.email,
       name: user.name,
       points: user.points,
+      gold: user.gold,
       level: user.level,
       role: user.role,
     },

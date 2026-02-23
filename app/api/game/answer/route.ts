@@ -59,9 +59,11 @@ export async function POST(request: Request) {
     correct: isCorrect,
     correctIndex: question.correctIndex,
     points: answerResult.user.points,
+    gold: answerResult.user.gold,
     level: answerResult.user.level,
     delta: answerResult.delta,
     bonusPoints: answerResult.bonusPoints,
+    goldDelta: answerResult.goldDelta,
     streak: answerResult.streak,
   });
 }

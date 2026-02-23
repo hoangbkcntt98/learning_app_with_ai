@@ -21,12 +21,14 @@ export default async function PlayPage() {
     segment: user.segment,
     avatarUrl: user.avatarUrl,
     points: user.points,
+    gold: user.gold,
     level: user.level,
   };
 
   return (
     <GameClient
       initialPoints={user.points}
+      initialGold={user.gold}
       initialLevel={user.level}
       isAdmin={user.role === "admin"}
       summaryUser={summaryUser}

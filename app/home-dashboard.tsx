@@ -11,6 +11,7 @@ type HomeUser = {
   segment: "Free" | "Plus" | "Pro" | "Premium";
   avatarUrl: string | null;
   points: number;
+  gold: number;
   level: number;
   role: "admin" | "user";
 };
@@ -99,6 +100,14 @@ export function HomeDashboard({
                 howTo: featureAccess.review.howTo,
               })
             }
+          />
+          <FeatureTile
+            href="/store"
+            label="Store"
+            imageSrc="/images/store.png"
+            imageAlt="Store"
+            isLocked={false}
+            onLockedClick={() => {}}
           />
           {user.role === "admin" ? (
             <FeatureTile

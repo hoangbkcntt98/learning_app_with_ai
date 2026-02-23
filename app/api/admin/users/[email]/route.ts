@@ -24,6 +24,7 @@ export async function PATCH(request: Request, context: Context) {
     name?: string;
     segment?: string;
     points?: number;
+    gold?: number;
     level?: number;
     role?: "admin" | "user";
     password?: string;
@@ -33,6 +34,9 @@ export async function PATCH(request: Request, context: Context) {
 
   if (typeof body.points === "number" && !Number.isFinite(body.points)) {
     return NextResponse.json({ error: "points must be a number." }, { status: 400 });
+  }
+  if (typeof body.gold === "number" && (!Number.isFinite(body.gold) || body.gold < 0)) {
+    return NextResponse.json({ error: "gold must be a non-negative number." }, { status: 400 });
   }
   if (typeof body.level === "number" && (!Number.isFinite(body.level) || body.level < 0)) {
     return NextResponse.json({ error: "level must be 0 or a positive number." }, { status: 400 });
@@ -80,6 +84,7 @@ export async function PATCH(request: Request, context: Context) {
       name: body.name,
       segment,
       points: body.points,
+      gold: body.gold,
       level: body.level,
       role: body.role,
       password: body.password,
