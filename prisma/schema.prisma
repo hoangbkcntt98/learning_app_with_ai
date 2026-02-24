@@ -18,6 +18,8 @@ model User {
   aiExtraUsageCredits Int     @default(0) @map("ai_extra_usage_credits")
   level        Int            @default(0)
   correctStreak Int           @default(0) @map("correct_streak")
+  dailyAnswerStreak Int       @default(0) @map("daily_answer_streak")
+  lastAnsweredDay String?     @map("last_answered_day")
   role         String
   aiDailyQuota Int?           @map("ai_daily_quota")
   createdAt    DateTime       @default(now()) @map("created_at")

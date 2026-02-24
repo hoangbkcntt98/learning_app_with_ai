@@ -104,6 +104,7 @@ export async function GET(request: Request) {
     points: user.points,
     gold: user.gold,
     level: user.level,
+    dailyStreak: user.dailyAnswerStreak,
     fields,
     levels,
     questions: pagedQuestions.map(sanitizeQuestion),

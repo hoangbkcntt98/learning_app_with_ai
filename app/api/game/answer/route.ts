@@ -65,5 +65,6 @@ export async function POST(request: Request) {
     bonusPoints: answerResult.bonusPoints,
     goldDelta: answerResult.goldDelta,
     streak: answerResult.streak,
+    dailyStreak: answerResult.dailyStreak,
   });
 }

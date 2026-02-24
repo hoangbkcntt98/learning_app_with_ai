@@ -72,6 +72,7 @@ export default async function RootLayout({
                       points: user.points,
                       gold: user.gold,
                       level: user.level,
+                      dailyAnswerStreak: user.dailyAnswerStreak,
                       aiQuotaRemaining: aiQuota.remaining,
                       aiQuotaLimit: aiQuota.limit,
                     }}

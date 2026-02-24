@@ -13,6 +13,7 @@ type HomeUser = {
   points: number;
   gold: number;
   level: number;
+  dailyAnswerStreak: number;
   aiQuotaRemaining: number;
   aiQuotaLimit: number;
   role: "admin" | "user";

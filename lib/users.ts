@@ -18,6 +18,8 @@ export type UserRecord = {
   aiExtraUsageCredits: number;
   level: number;
   correctStreak: number;
+  dailyAnswerStreak: number;
+  lastAnsweredDay: string | null;
   role: "admin" | "user";
   aiDailyQuota: number;
   questionFieldIds: number[];
@@ -65,6 +67,18 @@ function normalizePoints(value: unknown) {
   return Math.trunc(value);
 }
 
+function getUtcDayKey(date = new Date()): string {
+  // Keep day boundaries consistent across servers/timezones.
+  return date.toISOString().slice(0, 10);
+}
+
+function getPreviousUtcDayKey(dayKey: string): string {
+  // Return previous UTC day in YYYY-MM-DD format.
+  const date = new Date(`${dayKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return getUtcDayKey(date);
+}
+
 function mapUser(row: {
   email: string;
   passwordHash: string;
@@ -76,6 +90,8 @@ function mapUser(row: {
   aiExtraUsageCredits?: number;
   level: number;
   correctStreak?: number;
+  dailyAnswerStreak?: number;
+  lastAnsweredDay?: string | null;
   role: string;
   aiDailyQuota: number | null;
   createdAt?: Date;
@@ -100,6 +116,14 @@ function mapUser(row: {
       typeof row.correctStreak === "number" && Number.isFinite(row.correctStreak)
         ? Math.max(0, Math.trunc(row.correctStreak))
         : 0,
+    dailyAnswerStreak:
+      typeof row.dailyAnswerStreak === "number" && Number.isFinite(row.dailyAnswerStreak)
+        ? Math.max(0, Math.trunc(row.dailyAnswerStreak))
+        : 0,
+    lastAnsweredDay:
+      typeof row.lastAnsweredDay === "string" && row.lastAnsweredDay.trim()
+        ? row.lastAnsweredDay.trim()
+        : null,
     role: row.role === "admin" ? "admin" : "user",
     aiDailyQuota:
       typeof row.aiDailyQuota === "number" && row.aiDailyQuota > 0
@@ -293,6 +317,7 @@ export type ApplyGameAnswerResult = {
   bonusPoints: number;
   goldDelta: number;
   streak: number;
+  dailyStreak: number;
 };
 
 export async function applyGameAnswerResult(
@@ -327,6 +352,18 @@ export async function applyGameAnswerResult(
     const totalPointDelta = baseDelta + extraPointDelta;
     const previousStreak =
       typeof current.correctStreak === "number" ? Math.max(0, current.correctStreak) : 0;
+    const previousDailyStreak =
+      typeof current.dailyAnswerStreak === "number" ? Math.max(0, current.dailyAnswerStreak) : 0;
+    const todayKey = getUtcDayKey();
+    const yesterdayKey = getPreviousUtcDayKey(todayKey);
+    const lastAnsweredDay =
+      typeof current.lastAnsweredDay === "string" ? current.lastAnsweredDay.trim() : "";
+    const nextDailyStreak =
+      lastAnsweredDay === todayKey
+        ? previousDailyStreak
+        : lastAnsweredDay === yesterdayKey
+          ? previousDailyStreak + 1
+          : 1;
     let nextPoints = current.points + totalPointDelta;
     const nextGold = Math.max(0, (typeof current.gold === "number" ? current.gold : 0) + goldDelta);
     let nextLevel = calculateLevelFromPoints(nextPoints);
@@ -348,6 +385,8 @@ export async function applyGameAnswerResult(
         gold: nextGold,
         level: nextLevel,
         correctStreak: nextStreak,
+        dailyAnswerStreak: nextDailyStreak,
+        lastAnsweredDay: todayKey,
       },
       include: {
         questionFieldAccesses: {
@@ -364,6 +403,7 @@ export async function applyGameAnswerResult(
       bonusPoints,
       goldDelta,
       streak: nextStreak,
+      dailyStreak: nextDailyStreak,
     };
   });
 }
@@ -582,6 +622,8 @@ export function sanitizeUser(user: UserRecord) {
     aiExtraUsageCredits: user.aiExtraUsageCredits,
     level: user.level,
     correctStreak: user.correctStreak,
+    dailyAnswerStreak: user.dailyAnswerStreak,
+    lastAnsweredDay: user.lastAnsweredDay,
     role: user.role,
     aiDailyQuota: user.aiDailyQuota,
     questionFieldIds: user.questionFieldIds,

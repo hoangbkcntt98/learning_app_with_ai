@@ -34,6 +34,7 @@ type AnswerResult = {
   points: number;
   gold: number;
   level: number;
+  dailyStreak?: number;
   delta: number;
   bonusPoints?: number;
   goldDelta?: number;
@@ -156,6 +157,9 @@ export function GameClient({
   const [points, setPoints] = useState(initialPoints);
   const [gold, setGold] = useState(initialGold);
   const [userLevel, setUserLevel] = useState(initialLevel);
+  const [dailyAnswerStreak, setDailyAnswerStreak] = useState(
+    Math.max(0, Math.trunc(summaryUser.dailyAnswerStreak ?? 0)),
+  );
   const [error, setError] = useState("");
   const [showExplanation, setShowExplanation] = useState(false);
   const [showAnswerFeedbackPopup, setShowAnswerFeedbackPopup] = useState(false);
@@ -260,6 +264,7 @@ export function GameClient({
           points: number;
           gold?: number;
           level: number;
+          dailyStreak?: number;
           hasMore?: boolean;
           nextOffset?: number;
           seed?: number;
@@ -278,6 +283,11 @@ export function GameClient({
         setPoints(body.points ?? initialPoints);
         setGold(typeof body.gold === "number" ? body.gold : initialGold);
         setUserLevel(body.level ?? initialLevel);
+        setDailyAnswerStreak(
+          typeof body.dailyStreak === "number"
+            ? Math.max(0, Math.trunc(body.dailyStreak))
+            : 0,
+        );
         if (nextFields.length > 0 && selectedFieldId === null) {
           setSelectedFieldId(nextFields[0].id);
         }
@@ -423,12 +433,16 @@ export function GameClient({
       setPoints(body.points);
       setGold(body.gold);
       setUserLevel(body.level);
+      if (typeof body.dailyStreak === "number") {
+        setDailyAnswerStreak(Math.max(0, Math.trunc(body.dailyStreak)));
+      }
       window.dispatchEvent(
         new CustomEvent("user:stats-updated", {
           detail: {
             points: body.points,
             gold: body.gold,
             level: body.level,
+            dailyStreak: body.dailyStreak,
           },
         }),
       );
@@ -911,6 +925,7 @@ export function GameClient({
           points,
           gold,
           level: userLevel,
+          dailyAnswerStreak,
         }}
       />
 

@@ -19,6 +19,7 @@ export default async function AiChatPage() {
     points: user.points,
     gold: user.gold,
     level: user.level,
+    dailyAnswerStreak: user.dailyAnswerStreak,
     aiQuotaRemaining: aiQuota.remaining,
     aiQuotaLimit: aiQuota.limit,
   };

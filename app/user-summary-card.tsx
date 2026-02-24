@@ -14,6 +14,7 @@ export type UserSummary = {
   points: number;
   gold: number;
   level: number;
+  dailyAnswerStreak: number;
   aiQuotaRemaining?: number;
   aiQuotaLimit?: number;
 };
@@ -117,87 +118,31 @@ function AiQuotaIcon() {
   );
 }
 
+function MedalIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4 text-amber-600"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M7 2h4l1 5H8L7 2Zm10 0-1 5h-4l1-5h4Z" />
+      <path d="M12 9a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm0 3a1 1 0 0 1 .89.55l.64 1.3 1.43.21a1 1 0 0 1 .55 1.7l-1.03 1 .24 1.41a1 1 0 0 1-1.45 1.05L12 18.56l-1.27.66a1 1 0 0 1-1.45-1.05l.24-1.41-1.03-1a1 1 0 0 1 .55-1.7l1.43-.21.64-1.3A1 1 0 0 1 12 12Z" />
+    </svg>
+  );
+}
+
 export function UserTopRightStats({
-  user,
   className,
 }: {
   user: UserSummary;
   className?: string;
 }) {
-  const [displayedGold, setDisplayedGold] = useState(user.gold);
-  const [aiQuotaRemaining, setAiQuotaRemaining] = useState<number | undefined>(user.aiQuotaRemaining);
-  const [aiQuotaLimit, setAiQuotaLimit] = useState<number | undefined>(user.aiQuotaLimit);
-  const displayedAiQuotaRemaining = aiQuotaRemaining ?? user.aiQuotaRemaining;
-  const displayedAiQuotaLimit = aiQuotaLimit ?? user.aiQuotaLimit;
-
-  useEffect(() => {
-    let mounted = true;
-    async function refreshAiQuota() {
-      try {
-        const response = await fetch("/api/ai/quota", { cache: "no-store" });
-        if (!response.ok) {
-          return;
-        }
-        const body = (await response.json()) as { remaining?: number; limit?: number };
-        if (!mounted) {
-          return;
-        }
-        setAiQuotaRemaining(
-          typeof body.remaining === "number" ? body.remaining : undefined,
-        );
-        setAiQuotaLimit(typeof body.limit === "number" ? body.limit : undefined);
-      } catch {
-        // Keep existing UI values when quota endpoint is unavailable.
-      }
-    }
-
-    refreshAiQuota();
-    window.addEventListener("ai:usage-updated", refreshAiQuota);
-    return () => {
-      mounted = false;
-      window.removeEventListener("ai:usage-updated", refreshAiQuota);
-    };
-  }, []);
-
-  useEffect(() => {
-    function onUserStatsUpdated(event: Event) {
-      const nextGold = (event as CustomEvent<{ gold?: number }>).detail?.gold;
-      if (typeof nextGold === "number") {
-        setDisplayedGold(nextGold);
-      }
-    }
-
-    window.addEventListener("user:stats-updated", onUserStatsUpdated);
-    return () => {
-      window.removeEventListener("user:stats-updated", onUserStatsUpdated);
-    };
-  }, []);
-
   return (
     <div
       className={className ?? "absolute right-8 top-6 z-10 flex items-center gap-3 text-sm text-black/80"}
     >
-      <div className="inline-flex items-center gap-1.5" title="Gold">
-        <Image
-          src="/images/gold.jpg"
-          alt="Gold"
-          width={16}
-          height={16}
-          className="rounded-full object-cover"
-        />
-        <strong>{displayedGold}</strong>
-      </div>
-      {typeof displayedAiQuotaRemaining === "number" && typeof displayedAiQuotaLimit === "number" ? (
-        <div className="inline-flex items-center gap-1.5">
-          <div className="inline-flex items-center gap-1.5" title="AI chat quota">
-            <AiQuotaIcon />
-            <strong>
-              {displayedAiQuotaRemaining}/{displayedAiQuotaLimit}
-            </strong>
-          </div>
-          <LogoutButton variant="icon" />
-        </div>
-      ) : null}
+      <LogoutButton variant="icon" />
     </div>
   );
 }
@@ -425,6 +370,32 @@ export function UserSummaryCard({
             >
               {user.segment}
             </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-black/80">
+            {user.dailyAnswerStreak > 0 ? (
+              <div className="inline-flex items-center gap-1" title={`Streak medals: ${user.dailyAnswerStreak}`}>
+                <MedalIcon />
+                <strong>{user.dailyAnswerStreak}</strong>
+              </div>
+            ) : null}
+            <div className="inline-flex items-center gap-1" title="Gold">
+              <Image
+                src="/images/gold.jpg"
+                alt="Gold"
+                width={14}
+                height={14}
+                className="rounded-full object-cover"
+              />
+              <strong>{user.gold}</strong>
+            </div>
+            {typeof user.aiQuotaRemaining === "number" && typeof user.aiQuotaLimit === "number" ? (
+              <div className="inline-flex items-center gap-1" title="AI chat quota">
+                <AiQuotaIcon />
+                <strong>
+                  {user.aiQuotaRemaining}/{user.aiQuotaLimit}
+                </strong>
+              </div>
+            ) : null}
             {hasPetItems ? (
               <button
                 type="button"
