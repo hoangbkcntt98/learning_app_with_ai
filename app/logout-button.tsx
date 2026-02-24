@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LoadingPopup } from "./loading-popup";
 
-export function LogoutButton() {
+export function LogoutButton({
+  variant = "default",
+}: {
+  variant?: "default" | "menu";
+}) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,7 +30,11 @@ export function LogoutButton() {
         type="button"
         onClick={handleLogout}
         disabled={isLoading}
-        className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        className={
+          variant === "menu"
+            ? "flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-black/5 disabled:opacity-60"
+            : "inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        }
       >
         {/* Show a logout icon for the sign-out action button. */}
         <svg

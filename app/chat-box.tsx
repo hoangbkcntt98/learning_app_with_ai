@@ -184,6 +184,7 @@ export function ChatBox() {
         const withoutOptimistic = prev.filter((message) => message.id !== optimisticId);
         return [...withoutOptimistic, ...receivedMessages];
       });
+      window.dispatchEvent(new Event("ai:usage-updated"));
     } catch {
       setError("Failed to reach chat service.");
     } finally {

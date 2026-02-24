@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ActionResultPopup } from "./action-result-popup";
@@ -13,6 +13,8 @@ export type UserSummary = {
   points: number;
   gold: number;
   level: number;
+  aiQuotaRemaining?: number;
+  aiQuotaLimit?: number;
 };
 
 const defaultAvatarUrl = "/images/logo.png";
@@ -33,21 +35,6 @@ type UserStoreItem = {
   };
 };
 
-function getSegmentBadgeClass(segment: UserSummary["segment"]) {
-  // Apply a distinct badge style for each segment tier.
-  switch (segment) {
-    case "Premium":
-      return "border-yellow-400/80 bg-yellow-200 text-yellow-900";
-    case "Pro":
-      return "border-violet-400/80 bg-violet-200 text-violet-900";
-    case "Plus":
-      return "border-sky-400/80 bg-sky-200 text-sky-900";
-    case "Free":
-    default:
-      return "border-zinc-300 bg-zinc-200 text-zinc-800";
-  }
-}
-
 function computeLevelProgress(points: number, level: number) {
   // Compute progress to next level using powers-of-10 thresholds.
   if (level <= 0) {
@@ -65,10 +52,108 @@ function computeLevelProgress(points: number, level: number) {
   return Math.round(ratio * 100);
 }
 
-function getPointsToNextLevel(points: number, level: number) {
-  // Match level thresholds so UI shows accurate remaining points.
-  const nextLevelPoints = level <= 0 ? 10 : 10 ** (level + 1) / 2;
-  return Math.max(0, Math.ceil(nextLevelPoints - points));
+function getNextLevelPoints(level: number) {
+  // Return the absolute points target required for the next level.
+  return level <= 0 ? 10 : 10 ** (level + 1) / 2;
+}
+
+function getSegmentBadgeClass(segment: UserSummary["segment"]) {
+  switch (segment) {
+    case "Premium":
+      return "border-amber-300 bg-amber-50 text-amber-800";
+    case "Pro":
+      return "border-indigo-300 bg-indigo-50 text-indigo-800";
+    case "Plus":
+      return "border-sky-300 bg-sky-50 text-sky-800";
+    case "Free":
+    default:
+      return "border-zinc-300 bg-zinc-50 text-zinc-700";
+  }
+}
+
+function AiQuotaIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="7" width="16" height="10" rx="2" />
+      <path d="M12 3v4M9 17v2M15 17v2M7 11h2M15 11h2" />
+    </svg>
+  );
+}
+
+export function UserTopRightStats({
+  user,
+  className,
+}: {
+  user: UserSummary;
+  className?: string;
+}) {
+  const [aiQuotaRemaining, setAiQuotaRemaining] = useState<number | undefined>(user.aiQuotaRemaining);
+  const [aiQuotaLimit, setAiQuotaLimit] = useState<number | undefined>(user.aiQuotaLimit);
+  const displayedAiQuotaRemaining = aiQuotaRemaining ?? user.aiQuotaRemaining;
+  const displayedAiQuotaLimit = aiQuotaLimit ?? user.aiQuotaLimit;
+
+  useEffect(() => {
+    let mounted = true;
+    async function refreshAiQuota() {
+      try {
+        const response = await fetch("/api/ai/quota", { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const body = (await response.json()) as { remaining?: number; limit?: number };
+        if (!mounted) {
+          return;
+        }
+        setAiQuotaRemaining(
+          typeof body.remaining === "number" ? body.remaining : undefined,
+        );
+        setAiQuotaLimit(typeof body.limit === "number" ? body.limit : undefined);
+      } catch {
+        // Keep existing UI values when quota endpoint is unavailable.
+      }
+    }
+
+    refreshAiQuota();
+    window.addEventListener("ai:usage-updated", refreshAiQuota);
+    return () => {
+      mounted = false;
+      window.removeEventListener("ai:usage-updated", refreshAiQuota);
+    };
+  }, []);
+
+  return (
+    <div
+      className={className ?? "absolute right-8 top-6 z-10 flex items-center gap-3 text-sm text-black/80"}
+    >
+      <div className="inline-flex items-center gap-1.5" title="Gold">
+        <Image
+          src="/images/gold.jpg"
+          alt="Gold"
+          width={16}
+          height={16}
+          className="rounded-full object-cover"
+        />
+        <strong>{user.gold}</strong>
+      </div>
+      {typeof displayedAiQuotaRemaining === "number" && typeof displayedAiQuotaLimit === "number" ? (
+        <div className="inline-flex items-center gap-1.5" title="AI chat quota">
+          <AiQuotaIcon />
+          <strong>
+            {displayedAiQuotaRemaining}/{displayedAiQuotaLimit}
+          </strong>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function UserSummaryCard({
@@ -78,8 +163,9 @@ export function UserSummaryCard({
   user: UserSummary;
   showEditProfile?: boolean;
 }) {
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const levelProgressPercent = computeLevelProgress(user.points, user.level);
-  const pointsToNextLevel = getPointsToNextLevel(user.points, user.level);
+  const nextLevelPoints = getNextLevelPoints(user.level);
   const [hasPetItems, setHasPetItems] = useState(false);
   const [showPetPopup, setShowPetPopup] = useState(false);
   const [petItems, setPetItems] = useState<UserStoreItem[]>([]);
@@ -88,6 +174,7 @@ export function UserSummaryCard({
   const [savingEquipId, setSavingEquipId] = useState<string>("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const loadPetItems = useCallback(async () => {
     // Load current active purchased items for Pet/Equip button and popup.
@@ -121,6 +208,21 @@ export function UserSummaryCard({
       window.removeEventListener("store:updated", onStoreUpdated);
     };
   }, [loadPetItems]);
+
+  useEffect(() => {
+    function handleDocumentClick(event: MouseEvent) {
+      if (!avatarMenuRef.current) {
+        return;
+      }
+      if (event.target instanceof Node && !avatarMenuRef.current.contains(event.target)) {
+        setShowAvatarMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleDocumentClick);
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+    };
+  }, []);
 
   async function openPetPopup() {
     // Open popup and refresh owned items from latest server state.
@@ -192,76 +294,77 @@ export function UserSummaryCard({
       />
       <div className="flex items-start gap-3 md:gap-4">
         <div className="flex flex-col items-center">
-          <div className="relative flex h-16 w-16 items-center justify-center overflow-visible md:h-24 md:w-24">
-            <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-black/25 bg-black/5">
-              {/* Use app default avatar when user has not uploaded one. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={user.avatarUrl || defaultAvatarUrl}
-                alt={`${user.name} avatar`}
-                className="h-full w-full object-cover"
-              />
-            </div>
-
-            <span
-              className={`absolute -bottom-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold md:text-xs ${getSegmentBadgeClass(user.segment)}`}
+          <div ref={avatarMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAvatarMenu((prev) => !prev)}
+              className="relative flex h-16 w-16 items-center justify-center overflow-visible md:h-24 md:w-24"
+              aria-label="Open user menu"
+              aria-expanded={showAvatarMenu}
             >
-              {user.segment}
-            </span>
-          </div>
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-black/25 bg-black/5">
+                {/* Use app default avatar when user has not uploaded one. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={user.avatarUrl || defaultAvatarUrl}
+                  alt={`${user.name} avatar`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <span className="absolute -bottom-2 inline-flex rounded-full border border-black/20 bg-white px-2 py-0.5 text-[10px] font-semibold text-black/80 md:text-xs">
+                Lv {user.level}
+              </span>
+            </button>
 
-          {showEditProfile ? (
-            <div className="mt-4 flex flex-col gap-2 md:mt-5">
-              <Link
-                href="/profile"
-                className="inline-flex rounded-lg border border-black/20 px-2.5 py-1 text-[11px] font-medium md:px-3 md:py-1.5 md:text-xs"
-              >
-                Edit profile
-              </Link>
-              {hasPetItems ? (
-                <button
-                  type="button"
-                  onClick={openPetPopup}
-                  className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 md:px-3 md:py-1.5 md:text-xs"
-                >
-                  Pet / Equip
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+            {showAvatarMenu && (showEditProfile || hasPetItems) ? (
+              <div className="absolute left-1/2 top-full z-20 mt-3 flex w-40 -translate-x-1/2 flex-col gap-2 rounded-lg border border-black/15 bg-white p-2 shadow-lg">
+                {showEditProfile ? (
+                  <Link
+                    href="/profile"
+                    onClick={() => setShowAvatarMenu(false)}
+                    className="rounded-md border border-black/15 px-3 py-1.5 text-center text-xs font-medium text-black/80"
+                  >
+                    Edit profile
+                  </Link>
+                ) : null}
+                {hasPetItems ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAvatarMenu(false);
+                      void openPetPopup();
+                    }}
+                    className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                  >
+                    Pet / Equip
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <div className="min-w-0 flex-1 pt-0.5">
           <p className="text-sm text-black/70">
             Hi, <strong>{user.name}</strong>
           </p>
-          <p className="mt-1 text-sm text-black/70">
-            Current points: <strong>{user.points}</strong>
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-black/70">
-            Gold: <strong>{user.gold}</strong>
-            <Image
-              src="/images/gold.jpg"
-              alt="Gold"
-              width={16}
-              height={16}
-              className="rounded-full object-cover"
-            />
-          </p>
-          <p className="mt-2 text-sm text-black/70">
-            Level <strong>{user.level}</strong> ({levelProgressPercent}%)
-          </p>
-          <div className="mt-2">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-black/15">
+          <div className="mt-2 flex items-center gap-2">
+            <div className="relative h-5 w-full overflow-hidden rounded-full bg-black/15">
               <div
                 className="h-full rounded-full bg-blue-600 transition-all"
                 style={{ width: `${Math.max(0, Math.min(100, levelProgressPercent))}%` }}
               />
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-white">
+                {levelProgressPercent}%
+              </span>
             </div>
+            <span className="text-xs text-black/60">({user.points}/{nextLevelPoints})</span>
           </div>
-          <p className="mt-2 text-xs text-black/60">
-            Need <strong>{pointsToNextLevel}</strong> more points to reach next level
-          </p>
+          <span
+            className={`mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getSegmentBadgeClass(user.segment)}`}
+          >
+            {user.segment}
+          </span>
         </div>
       </div>
 

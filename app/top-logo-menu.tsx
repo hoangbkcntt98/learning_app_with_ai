@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { LogoutButton } from "./logout-button";
 
 type ThemeMode = "light" | "dark";
 const storageKey = "theme_mode";
@@ -129,6 +130,7 @@ export function TopLogoMenu() {
             </svg>
             {mode === "light" ? "Dark Mode" : "Light Mode"}
           </button>
+          <LogoutButton variant="menu" />
         </div>
       ) : null}
     </div>

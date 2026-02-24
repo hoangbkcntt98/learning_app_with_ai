@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
+import { canUseAiModel } from "@/lib/settings";
 import { HomeDashboard } from "./home-dashboard";
 
 export default async function Home() {
@@ -10,12 +11,13 @@ export default async function Home() {
   }
 
   // Pre-compute feature availability so homepage tiles can show lock state.
-  const [learningAccess, forumAccess, aiChatAccess, reviewAccess, adminAccess] = await Promise.all([
+  const [learningAccess, forumAccess, aiChatAccess, reviewAccess, adminAccess, aiQuota] = await Promise.all([
     checkUserFeatureAccess(user, "learning"),
     checkUserFeatureAccess(user, "forum"),
     checkUserFeatureAccess(user, "ai_chat"),
     checkUserFeatureAccess(user, "review"),
     checkUserFeatureAccess(user, "admin"),
+    canUseAiModel(user.email),
   ]);
 
   function buildHowToUnlock(
@@ -53,7 +55,11 @@ export default async function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-6 py-8">
       <HomeDashboard
-        initialUser={user}
+        initialUser={{
+          ...user,
+          aiQuotaRemaining: aiQuota.remaining,
+          aiQuotaLimit: aiQuota.limit,
+        }}
         featureAccess={{
           learning: {
             allowed: learningAccess.allowed,

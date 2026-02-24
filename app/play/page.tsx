@@ -3,6 +3,7 @@ import { FeatureAccessWarning } from "@/app/feature-access-warning";
 import type { UserSummary } from "@/app/user-summary-card";
 import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
+import { canUseAiModel } from "@/lib/settings";
 import { GameClient } from "./game-client";
 
 export default async function PlayPage() {
@@ -14,6 +15,7 @@ export default async function PlayPage() {
   if (!access.allowed) {
     return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
+  const aiQuota = await canUseAiModel(user.email);
 
   const summaryUser: UserSummary = {
     email: user.email,
@@ -23,6 +25,8 @@ export default async function PlayPage() {
     points: user.points,
     gold: user.gold,
     level: user.level,
+    aiQuotaRemaining: aiQuota.remaining,
+    aiQuotaLimit: aiQuota.limit,
   };
 
   return (

@@ -618,6 +618,7 @@ export function GameClient({
           cached: false,
         },
       }));
+      window.dispatchEvent(new Event("ai:usage-updated"));
     } catch {
       setExplanationError("Failed to generate explanation.");
     } finally {
@@ -703,6 +704,7 @@ export function GameClient({
         const withoutOptimistic = prev.filter((message) => message.id !== optimisticId);
         return [...withoutOptimistic, ...mappedMessages];
       });
+      window.dispatchEvent(new Event("ai:usage-updated"));
     } catch {
       setAdminAskError("Failed to connect to AI service.");
     } finally {

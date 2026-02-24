@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { UserSummaryCard } from "@/app/user-summary-card";
+import { UserSummaryCard, type UserSummary } from "@/app/user-summary-card";
 import { getCurrentUser } from "@/lib/session";
+import { canUseAiModel } from "@/lib/settings";
 import { StoreClient } from "./store-client";
 
 export default async function StorePage() {
@@ -10,20 +11,22 @@ export default async function StorePage() {
   if (!user) {
     redirect("/login");
   }
+  const aiQuota = await canUseAiModel(user.email);
+  const summaryUser: UserSummary = {
+    email: user.email,
+    name: user.name,
+    segment: user.segment,
+    avatarUrl: user.avatarUrl,
+    points: user.points,
+    gold: user.gold,
+    level: user.level,
+    aiQuotaRemaining: aiQuota.remaining,
+    aiQuotaLimit: aiQuota.limit,
+  };
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl px-6 py-8">
-      <UserSummaryCard
-        user={{
-          email: user.email,
-          name: user.name,
-          segment: user.segment,
-          avatarUrl: user.avatarUrl,
-          points: user.points,
-          gold: user.gold,
-          level: user.level,
-        }}
-      />
+      <UserSummaryCard user={summaryUser} />
 
       <div className="mt-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Store</h1>

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
+import { canUseAiModel } from "@/lib/settings";
 import "./globals.css";
-import { LogoutButton } from "./logout-button";
 import { TopLogoMenu } from "./top-logo-menu";
+import { UserTopRightStats } from "./user-summary-card";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,7 @@ export default async function RootLayout({
 }>) {
   // Resolve auth state once in layout to render a shared top navigation bar.
   const user = await getCurrentUser();
+  const aiQuota = user ? await canUseAiModel(user.email) : null;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -60,7 +62,22 @@ export default async function RootLayout({
               <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
                 {/* Show dropdown links (About, Contact, Donate) when clicking the logo. */}
                 <TopLogoMenu />
-                <LogoutButton />
+                {aiQuota ? (
+                  <UserTopRightStats
+                    user={{
+                      email: user.email,
+                      name: user.name,
+                      segment: user.segment,
+                      avatarUrl: user.avatarUrl,
+                      points: user.points,
+                      gold: user.gold,
+                      level: user.level,
+                      aiQuotaRemaining: aiQuota.remaining,
+                      aiQuotaLimit: aiQuota.limit,
+                    }}
+                    className="flex items-center gap-3 text-sm text-black/80"
+                  />
+                ) : null}
               </div>
             </header>
           ) : null}

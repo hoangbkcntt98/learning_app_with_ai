@@ -6,6 +6,15 @@ import { readQuestions, sanitizeQuestion } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
 import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
+function shuffleQuestions<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -38,6 +47,7 @@ export async function GET(request: Request) {
     const matchesLevel = levelParam ? question.level === levelParam : true;
     return matchesField && matchesLevel;
   });
+  const shuffledFiltered = shuffleQuestions(filtered);
 
   const allFields = await readQuestionFields();
   const fieldMap = new Map(allFields.map((item) => [item.id, item]));
@@ -71,6 +81,6 @@ export async function GET(request: Request) {
     level: user.level,
     fields,
     levels,
-    questions: filtered.map(sanitizeQuestion),
+    questions: shuffledFiltered.map(sanitizeQuestion),
   });
 }

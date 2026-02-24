@@ -13,6 +13,8 @@ type HomeUser = {
   points: number;
   gold: number;
   level: number;
+  aiQuotaRemaining: number;
+  aiQuotaLimit: number;
   role: "admin" | "user";
 };
 
