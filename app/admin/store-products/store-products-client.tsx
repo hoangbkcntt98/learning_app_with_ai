@@ -14,6 +14,8 @@ type StoreProduct = {
   description: string;
   imageUrl: string;
   priceGold: number;
+  stockLimit: number | null;
+  soldCount: number;
   durationDays: number;
   effectExtraAiDailyQuota: number;
   effectBonusPoints: number;
@@ -92,12 +94,17 @@ function sanitizeDraft(draft: ProductDraft): ProductDraft {
     name: draft.name.trim(),
     description: draft.description.trim(),
     imageUrl: draft.imageUrl.trim(),
+    stockLimit:
+      typeof draft.stockLimit === "number" && Number.isFinite(draft.stockLimit)
+        ? Math.max(0, Math.trunc(draft.stockLimit))
+        : null,
     durationDays: useType === 1 ? 0 : Math.max(0, Math.trunc(draft.durationDays)),
     productType: Math.max(0, Math.trunc(draft.productType)),
     priceGold: Math.max(0, Math.trunc(draft.priceGold)),
     effectExtraAiDailyQuota: Math.max(0, Math.trunc(draft.effectExtraAiDailyQuota)),
     effectBonusPoints: Math.max(0, Math.trunc(draft.effectBonusPoints)),
     effectBonusGold: Math.max(0, Math.trunc(draft.effectBonusGold)),
+    soldCount: Math.max(0, Math.trunc(draft.soldCount)),
   };
 }
 
@@ -110,6 +117,8 @@ export function AdminStoreProductsClient() {
     description: "",
     imageUrl: "/images/products/",
     priceGold: 0,
+    stockLimit: null,
+    soldCount: 0,
     durationDays: 1,
     effectExtraAiDailyQuota: 0,
     effectBonusPoints: 0,
@@ -187,6 +196,8 @@ export function AdminStoreProductsClient() {
         description: "",
         imageUrl: "/images/products/",
         priceGold: 0,
+        stockLimit: null,
+        soldCount: 0,
         durationDays: 1,
         effectExtraAiDailyQuota: 0,
         effectBonusPoints: 0,
@@ -216,6 +227,8 @@ export function AdminStoreProductsClient() {
         description: selectedEdit.description,
         imageUrl: selectedEdit.imageUrl,
         priceGold: selectedEdit.priceGold,
+        stockLimit: selectedEdit.stockLimit,
+        soldCount: selectedEdit.soldCount,
         durationDays: selectedEdit.durationDays,
         effectExtraAiDailyQuota: selectedEdit.effectExtraAiDailyQuota,
         effectBonusPoints: selectedEdit.effectBonusPoints,
@@ -379,6 +392,24 @@ export function AdminStoreProductsClient() {
             />
           </label>
           <label className="block">
+            <span className="mb-1 block text-xs font-medium text-black/70">Stock limit</span>
+            <input
+              type="number"
+              min={0}
+              value={newProduct.stockLimit ?? ""}
+              placeholder="Unlimited"
+              onChange={(event) =>
+                setNewProduct((prev) => ({
+                  ...prev,
+                  stockLimit: event.target.value.trim()
+                    ? Number.parseInt(event.target.value, 10)
+                    : null,
+                }))
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block">
             <span className="mb-1 block text-xs font-medium text-black/70">Duration days</span>
             <input
               type="number"
@@ -466,6 +497,7 @@ export function AdminStoreProductsClient() {
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Name</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Use type</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Price</th>
+                <th className="border-b border-black/10 px-3 py-2 font-semibold">Stock</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Active</th>
                 <th className="border-b border-black/10 px-3 py-2 font-semibold">Action</th>
               </tr>
@@ -480,6 +512,11 @@ export function AdminStoreProductsClient() {
                   </td>
                   <td className="border-b border-black/10 px-3 py-2">{product.priceGold}</td>
                   <td className="border-b border-black/10 px-3 py-2">
+                    {product.stockLimit === null
+                      ? "Unlimited"
+                      : `${Math.max(0, product.stockLimit - product.soldCount)} left`}
+                  </td>
+                  <td className="border-b border-black/10 px-3 py-2">
                     {product.isActive ? "Yes" : "No"}
                   </td>
                   <td className="border-b border-black/10 px-3 py-2">
@@ -493,7 +530,7 @@ export function AdminStoreProductsClient() {
               ))}
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-sm text-black/60" colSpan={6}>
+                  <td className="px-3 py-3 text-sm text-black/60" colSpan={7}>
                     No products found.
                   </td>
                 </tr>
@@ -521,6 +558,10 @@ export function AdminStoreProductsClient() {
             <p className="text-sm">Use type: {selectedView.useType}</p>
             <p className="text-sm">Description: {selectedView.description}</p>
             <p className="text-sm">Price: {selectedView.priceGold} gold</p>
+            <p className="text-sm">
+              Stock: {selectedView.stockLimit === null ? "Unlimited" : selectedView.stockLimit}
+            </p>
+            <p className="text-sm">Sold: {selectedView.soldCount}</p>
             <p className="text-sm">Duration: {selectedView.useType === 1 ? "1 time" : `${selectedView.durationDays} day(s)`}</p>
             <p className="text-sm">Bonus AI quota: {selectedView.effectExtraAiDailyQuota}</p>
             <p className="text-sm">Bonus points: {selectedView.effectBonusPoints}</p>
@@ -609,6 +650,25 @@ export function AdminStoreProductsClient() {
                 )
               }
               placeholder="Price gold"
+              className="w-full rounded border border-black/20 px-2 py-1 text-sm"
+            />
+            <input
+              type="number"
+              min={0}
+              value={selectedEdit.stockLimit ?? ""}
+              onChange={(event) =>
+                setSelectedEdit((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        stockLimit: event.target.value.trim()
+                          ? Number.parseInt(event.target.value, 10)
+                          : null,
+                      }
+                    : prev,
+                )
+              }
+              placeholder="Stock limit (blank = unlimited)"
               className="w-full rounded border border-black/20 px-2 py-1 text-sm"
             />
             <input

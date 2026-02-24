@@ -31,6 +31,9 @@ export async function POST(request: Request) {
     if (message === "Not enough gold.") {
       return NextResponse.json({ error: message }, { status: 400 });
     }
+    if (message === "Out of stock.") {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     if (message === "Product not found.") {
       return NextResponse.json({ error: message }, { status: 404 });
     }

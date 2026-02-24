@@ -7,7 +7,7 @@ import { LoadingPopup } from "./loading-popup";
 export function LogoutButton({
   variant = "default",
 }: {
-  variant?: "default" | "menu";
+  variant?: "default" | "menu" | "icon";
 }) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -33,8 +33,12 @@ export function LogoutButton({
         className={
           variant === "menu"
             ? "flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-black/5 disabled:opacity-60"
+            : variant === "icon"
+              ? "inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/20 text-black/75 hover:bg-black/5 disabled:opacity-60"
             : "inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         }
+        aria-label="Logout"
+        title="Logout"
       >
         {/* Show a logout icon for the sign-out action button. */}
         <svg
@@ -51,7 +55,7 @@ export function LogoutButton({
           <path d="M16 17l5-5-5-5" />
           <path d="M21 12H9" />
         </svg>
-        {isLoading ? "Logging out..." : "Logout"}
+        {variant === "icon" ? null : isLoading ? "Logging out..." : "Logout"}
       </button>
     </>
   );

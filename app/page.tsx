@@ -11,12 +11,13 @@ export default async function Home() {
   }
 
   // Pre-compute feature availability so homepage tiles can show lock state.
-  const [learningAccess, forumAccess, aiChatAccess, reviewAccess, adminAccess, aiQuota] = await Promise.all([
+  const [learningAccess, forumAccess, aiChatAccess, reviewAccess, adminAccess, storeAccess, aiQuota] = await Promise.all([
     checkUserFeatureAccess(user, "learning"),
     checkUserFeatureAccess(user, "forum"),
     checkUserFeatureAccess(user, "ai_chat"),
     checkUserFeatureAccess(user, "review"),
     checkUserFeatureAccess(user, "admin"),
+    checkUserFeatureAccess(user, "store"),
     canUseAiModel(user.email),
   ]);
 
@@ -85,6 +86,11 @@ export default async function Home() {
             allowed: adminAccess.allowed,
             message: adminAccess.message,
             howTo: buildHowToUnlock(adminAccess),
+          },
+          store: {
+            allowed: storeAccess.allowed,
+            message: storeAccess.message,
+            howTo: buildHowToUnlock(storeAccess),
           },
         }}
       />

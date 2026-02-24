@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     description?: string;
     imageUrl?: string;
     priceGold?: number;
+    stockLimit?: number | null;
     durationDays?: number;
     effectExtraAiDailyQuota?: number;
     effectBonusPoints?: number;
@@ -42,6 +43,12 @@ export async function POST(request: Request) {
   const description = body.description?.trim() ?? "";
   const imageUrl = body.imageUrl?.trim() ?? "";
   const priceGold = typeof body.priceGold === "number" ? Math.trunc(body.priceGold) : 0;
+  const stockLimit =
+    typeof body.stockLimit === "number"
+      ? Math.trunc(body.stockLimit)
+      : body.stockLimit === null
+        ? null
+        : null;
   const durationDays = typeof body.durationDays === "number" ? Math.trunc(body.durationDays) : 0;
   const effectExtraAiDailyQuota =
     typeof body.effectExtraAiDailyQuota === "number" ? Math.trunc(body.effectExtraAiDailyQuota) : 0;
@@ -65,6 +72,9 @@ export async function POST(request: Request) {
   }
   if (!Number.isFinite(priceGold) || priceGold < 0) {
     return NextResponse.json({ error: "priceGold must be 0 or above." }, { status: 400 });
+  }
+  if (stockLimit !== null && (!Number.isFinite(stockLimit) || stockLimit < 0)) {
+    return NextResponse.json({ error: "stockLimit must be 0 or above, or null." }, { status: 400 });
   }
   if (!Number.isFinite(durationDays) || durationDays < 0) {
     return NextResponse.json({ error: "durationDays must be 0 or above." }, { status: 400 });
@@ -97,6 +107,7 @@ export async function POST(request: Request) {
         description,
         imageUrl,
         priceGold,
+        stockLimit,
         durationDays,
         effectExtraAiDailyQuota,
         effectBonusPoints,

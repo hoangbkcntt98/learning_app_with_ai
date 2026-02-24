@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FeatureAccessWarning } from "@/app/feature-access-warning";
 import { UserSummaryCard, type UserSummary } from "@/app/user-summary-card";
+import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { canUseAiModel } from "@/lib/settings";
 import { StoreClient } from "./store-client";
@@ -10,6 +12,10 @@ export default async function StorePage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");
+  }
+  const access = await checkUserFeatureAccess(user, "store");
+  if (!access.allowed) {
+    return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
   const aiQuota = await canUseAiModel(user.email);
   const summaryUser: UserSummary = {

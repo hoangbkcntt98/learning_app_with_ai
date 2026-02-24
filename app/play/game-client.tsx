@@ -55,6 +55,8 @@ type AdminChatMessage = {
   cached?: boolean;
 };
 
+const QUESTION_CHUNK_SIZE = 20;
+
 function NextIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -145,6 +147,10 @@ export function GameClient({
   const [selectedLevel, setSelectedLevel] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [isLoadingMoreQuestions, setIsLoadingMoreQuestions] = useState(false);
+  const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
+  const [nextQuestionOffset, setNextQuestionOffset] = useState(0);
+  const [questionSeed, setQuestionSeed] = useState<number | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
@@ -234,11 +240,18 @@ export function GameClient({
         if (selectedLevel) {
           params.set("level", selectedLevel);
         }
+        const generatedSeed = Math.floor(Math.random() * 2147483647);
+        params.set("offset", "0");
+        params.set("limit", String(QUESTION_CHUNK_SIZE));
+        params.set("seed", String(generatedSeed));
         const response = await fetch(`/api/game/questions?${params.toString()}`);
         if (!response.ok) {
           const body = (await response.json()) as { error?: string };
           setError(body.error ?? "Could not load questions.");
           setQuestions([]);
+          setHasMoreQuestions(false);
+          setNextQuestionOffset(0);
+          setQuestionSeed(null);
           return;
         }
 
@@ -249,12 +262,21 @@ export function GameClient({
           points: number;
           gold?: number;
           level: number;
+          hasMore?: boolean;
+          nextOffset?: number;
+          seed?: number;
         };
         const nextFields = body.fields ?? [];
         const nextLevels = body.levels ?? [];
         setFields(nextFields);
         setLevels(nextLevels);
-        setQuestions(body.questions ?? []);
+        const initialChunk = body.questions ?? [];
+        setQuestions(initialChunk);
+        setHasMoreQuestions(Boolean(body.hasMore));
+        setNextQuestionOffset(
+          typeof body.nextOffset === "number" ? body.nextOffset : initialChunk.length,
+        );
+        setQuestionSeed(typeof body.seed === "number" ? body.seed : generatedSeed);
         setPoints(body.points ?? initialPoints);
         setGold(typeof body.gold === "number" ? body.gold : initialGold);
         setUserLevel(body.level ?? initialLevel);
@@ -271,6 +293,9 @@ export function GameClient({
       } catch {
         setError("Failed to load questions.");
         setQuestions([]);
+        setHasMoreQuestions(false);
+        setNextQuestionOffset(0);
+        setQuestionSeed(null);
       } finally {
         setIsLoadingQuestions(false);
       }
@@ -278,6 +303,81 @@ export function GameClient({
 
     loadQuestions();
   }, [selectedFieldId, selectedLevel, initialGold, initialLevel, initialPoints]);
+
+  useEffect(() => {
+    // Lazy-load next chunk before learner reaches the end of current chunk.
+    if (isLoadingQuestions || isLoadingMoreQuestions || !hasMoreQuestions || questionSeed === null) {
+      return;
+    }
+    if (currentIndex < Math.max(0, questions.length - 5)) {
+      return;
+    }
+
+    let cancelled = false;
+    async function loadMoreQuestions() {
+      setIsLoadingMoreQuestions(true);
+      try {
+        const params = new URLSearchParams();
+        if (selectedFieldId !== null) {
+          params.set("fieldId", String(selectedFieldId));
+        }
+        if (selectedLevel) {
+          params.set("level", selectedLevel);
+        }
+        params.set("offset", String(nextQuestionOffset));
+        params.set("limit", String(QUESTION_CHUNK_SIZE));
+        params.set("seed", String(questionSeed));
+
+        const response = await fetch(`/api/game/questions?${params.toString()}`);
+        if (!response.ok) {
+          return;
+        }
+        const body = (await response.json()) as {
+          questions: Question[];
+          hasMore?: boolean;
+          nextOffset?: number;
+        };
+        if (cancelled) {
+          return;
+        }
+
+        const loadedChunk = body.questions ?? [];
+        if (loadedChunk.length > 0) {
+          setError("");
+        }
+        setQuestions((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          const dedupedIncoming = loadedChunk.filter((item) => !existingIds.has(item.id));
+          return dedupedIncoming.length > 0 ? [...prev, ...dedupedIncoming] : prev;
+        });
+        setHasMoreQuestions(Boolean(body.hasMore));
+        setNextQuestionOffset(
+          typeof body.nextOffset === "number"
+            ? body.nextOffset
+            : nextQuestionOffset + loadedChunk.length,
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMoreQuestions(false);
+        }
+      }
+    }
+
+    loadMoreQuestions();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentIndex,
+    hasMoreQuestions,
+    isLoadingMoreQuestions,
+    isLoadingQuestions,
+    nextQuestionOffset,
+    questionSeed,
+    questions.length,
+    selectedFieldId,
+    selectedLevel,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -328,6 +428,14 @@ export function GameClient({
   }
 
   function goToNextQuestion() {
+    if (currentIndex + 1 >= questions.length) {
+      if (hasMoreQuestions) {
+        setError("Loading next questions...");
+      }
+      return;
+    }
+
+    setError("");
     setAnswerResult(null);
     setSelectedIndex(null);
     setShowAnswerFeedbackPopup(false);
@@ -741,8 +849,12 @@ export function GameClient({
     await askAiAsAdmin();
   }
 
-  const isLastQuestion = currentIndex + 1 >= questions.length;
-  const canGoToNextQuestion = answerResult !== null && !isLastQuestion;
+  const isLastLoadedQuestion = currentIndex + 1 >= questions.length;
+  const isLastQuestion = isLastLoadedQuestion && !hasMoreQuestions;
+  const canGoToNextQuestion =
+    answerResult !== null &&
+    !isLastQuestion &&
+    (!isLastLoadedQuestion || !isLoadingMoreQuestions);
   const canExplain = answerResult !== null && selectedIndex !== null;
   const explanationKey = currentQuestion ? `${currentQuestion.id}:${explanationLanguage}` : "";
   const currentExplanation = currentQuestion
@@ -752,6 +864,7 @@ export function GameClient({
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-8">
       {isLoadingQuestions ? <LoadingPopup message="Loading questions..." /> : null}
+      {isLoadingMoreQuestions ? <LoadingPopup message="Loading more questions..." /> : null}
       {isSubmittingAnswer ? <LoadingPopup message="Checking your answer..." /> : null}
       {answerResult && (answerResult.bonusPoints ?? 0) > 0 ? (
         <FeedbackPopup

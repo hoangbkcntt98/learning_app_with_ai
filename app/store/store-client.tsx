@@ -13,6 +13,8 @@ type StoreProduct = {
   description: string;
   imageUrl: string;
   priceGold: number;
+  stockLimit: number | null;
+  soldCount: number;
   durationDays: number;
 };
 
@@ -119,6 +121,9 @@ export function StoreClient({ initialGold }: { initialGold: number }) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {sortedProducts.map((product) => {
           const isOwned = ownedProductIds.includes(product.id);
+          const remainingStock =
+            product.stockLimit === null ? null : Math.max(0, product.stockLimit - product.soldCount);
+          const isOutOfStock = remainingStock !== null && remainingStock <= 0;
           return (
           <article
             key={product.id}
@@ -149,6 +154,9 @@ export function StoreClient({ initialGold }: { initialGold: number }) {
               <p className="mt-1 text-xs text-black/60">
                 Expiration: {product.useType === 1 ? "1 time" : `${product.durationDays} day(s)`}
               </p>
+              <p className="mt-1 text-xs text-black/60">
+                Stock: {remainingStock === null ? "Unlimited" : `${remainingStock} left`}
+              </p>
               <div className="mt-3 flex items-center gap-2">
                 <button
                   type="button"
@@ -160,10 +168,18 @@ export function StoreClient({ initialGold }: { initialGold: number }) {
                 <button
                   type="button"
                   onClick={() => buyProduct(product)}
-                  disabled={isOwned || buyingProductId === product.id || gold < product.priceGold}
+                  disabled={
+                    isOwned || isOutOfStock || buyingProductId === product.id || gold < product.priceGold
+                  }
                   className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black text-white shadow-[0_3px_0_#065f46] transition active:translate-y-[1px] active:shadow-[0_2px_0_#065f46] disabled:opacity-50"
                 >
-                  {isOwned ? "Owned" : buyingProductId === product.id ? "Buying..." : "Buy"}
+                  {isOwned
+                    ? "Owned"
+                    : isOutOfStock
+                      ? "Out of stock"
+                      : buyingProductId === product.id
+                        ? "Buying..."
+                        : "Buy"}
                 </button>
               </div>
             </div>

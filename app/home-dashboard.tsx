@@ -29,6 +29,7 @@ export function HomeDashboard({
     aiChat: { allowed: boolean; message: string; howTo: string };
     review: { allowed: boolean; message: string; howTo: string };
     admin: { allowed: boolean; message: string; howTo: string };
+    store: { allowed: boolean; message: string; howTo: string };
   };
 }) {
   const user = initialUser;
@@ -108,8 +109,14 @@ export function HomeDashboard({
             label="Store"
             imageSrc="/images/store.png"
             imageAlt="Store"
-            isLocked={false}
-            onLockedClick={() => {}}
+            isLocked={!featureAccess.store.allowed}
+            onLockedClick={() =>
+              setLockedFeaturePopup({
+                label: "Store",
+                message: featureAccess.store.message,
+                howTo: featureAccess.store.howTo,
+              })
+            }
           />
           {user.role === "admin" ? (
             <FeatureTile

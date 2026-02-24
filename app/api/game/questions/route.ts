@@ -6,10 +6,22 @@ import { readQuestions, sanitizeQuestion } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
 import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
-function shuffleQuestions<T>(items: T[]): T[] {
+function seededRng(seed: number) {
+  let state = seed >>> 0;
+  return function next() {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = Math.imul(state ^ (state >>> 15), 1 | state);
+    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleQuestions<T>(items: T[], seed?: number): T[] {
   const shuffled = [...items];
+  const random =
+    typeof seed === "number" && Number.isFinite(seed) ? seededRng(Math.trunc(seed)) : Math.random;
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(random() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
   }
   return shuffled;
@@ -28,6 +40,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const fieldIdParam = searchParams.get("fieldId");
   const levelParam = (searchParams.get("level") ?? "").trim();
+  const offsetParam = Number.parseInt(searchParams.get("offset") ?? "0", 10);
+  const limitParam = Number.parseInt(searchParams.get("limit") ?? "20", 10);
+  const seedParam = Number.parseInt(searchParams.get("seed") ?? "", 10);
+  const offset = Number.isFinite(offsetParam) && offsetParam > 0 ? offsetParam : 0;
+  const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(100, limitParam)) : 20;
+  const seed =
+    Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 2147483647);
   const fieldId =
     fieldIdParam && Number.isFinite(Number.parseInt(fieldIdParam, 10))
       ? Number.parseInt(fieldIdParam, 10)
@@ -47,7 +66,8 @@ export async function GET(request: Request) {
     const matchesLevel = levelParam ? question.level === levelParam : true;
     return matchesField && matchesLevel;
   });
-  const shuffledFiltered = shuffleQuestions(filtered);
+  const shuffledFiltered = shuffleQuestions(filtered, seed);
+  const pagedQuestions = shuffledFiltered.slice(offset, offset + limit);
 
   const allFields = await readQuestionFields();
   const fieldMap = new Map(allFields.map((item) => [item.id, item]));
@@ -75,12 +95,22 @@ export async function GET(request: Request) {
     ).values(),
   ).sort((a, b) => a.level.localeCompare(b.level));
 
+  const total = shuffledFiltered.length;
+  const nextOffset = offset + pagedQuestions.length;
+  const hasMore = nextOffset < total;
+
   return NextResponse.json({
     points: user.points,
     gold: user.gold,
     level: user.level,
     fields,
     levels,
-    questions: shuffledFiltered.map(sanitizeQuestion),
+    questions: pagedQuestions.map(sanitizeQuestion),
+    total,
+    offset,
+    limit,
+    nextOffset,
+    hasMore,
+    seed,
   });
 }

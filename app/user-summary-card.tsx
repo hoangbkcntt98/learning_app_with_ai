@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ActionResultPopup } from "./action-result-popup";
+import { LogoutButton } from "./logout-button";
 
 export type UserSummary = {
   email: string;
@@ -18,6 +19,17 @@ export type UserSummary = {
 };
 
 const defaultAvatarUrl = "/images/logo.png";
+const themeStorageKey = "theme_mode";
+
+type ThemeMode = "light" | "dark";
+
+function applyTheme(mode: ThemeMode) {
+  // Sync selected mode to <html> class and persist it.
+  const root = document.documentElement;
+  root.classList.toggle("dark", mode === "dark");
+  root.dataset.themeMode = mode;
+  window.localStorage.setItem(themeStorageKey, mode);
+}
 
 type UserStoreItem = {
   id: string;
@@ -145,11 +157,14 @@ export function UserTopRightStats({
         <strong>{user.gold}</strong>
       </div>
       {typeof displayedAiQuotaRemaining === "number" && typeof displayedAiQuotaLimit === "number" ? (
-        <div className="inline-flex items-center gap-1.5" title="AI chat quota">
-          <AiQuotaIcon />
-          <strong>
-            {displayedAiQuotaRemaining}/{displayedAiQuotaLimit}
-          </strong>
+        <div className="inline-flex items-center gap-1.5">
+          <div className="inline-flex items-center gap-1.5" title="AI chat quota">
+            <AiQuotaIcon />
+            <strong>
+              {displayedAiQuotaRemaining}/{displayedAiQuotaLimit}
+            </strong>
+          </div>
+          <LogoutButton variant="icon" />
         </div>
       ) : null}
     </div>
@@ -164,6 +179,12 @@ export function UserSummaryCard({
   showEditProfile?: boolean;
 }) {
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") {
+      return "light";
+    }
+    return window.localStorage.getItem(themeStorageKey) === "dark" ? "dark" : "light";
+  });
   const levelProgressPercent = computeLevelProgress(user.points, user.level);
   const nextLevelPoints = getNextLevelPoints(user.level);
   const [hasPetItems, setHasPetItems] = useState(false);
@@ -233,6 +254,12 @@ export function UserSummaryCard({
     setOpenDescriptionIds([]);
     await loadPetItems();
     setIsLoadingPetItems(false);
+  }
+
+  function toggleThemeMode() {
+    const nextMode: ThemeMode = themeMode === "light" ? "dark" : "light";
+    setThemeMode(nextMode);
+    applyTheme(nextMode);
   }
 
   function toggleDescription(itemId: string) {
@@ -316,7 +343,7 @@ export function UserSummaryCard({
               </span>
             </button>
 
-            {showAvatarMenu && (showEditProfile || hasPetItems) ? (
+            {showAvatarMenu ? (
               <div className="absolute left-1/2 top-full z-20 mt-3 flex w-40 -translate-x-1/2 flex-col gap-2 rounded-lg border border-black/15 bg-white p-2 shadow-lg">
                 {showEditProfile ? (
                   <Link
@@ -327,18 +354,17 @@ export function UserSummaryCard({
                     Edit profile
                   </Link>
                 ) : null}
-                {hasPetItems ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAvatarMenu(false);
-                      void openPetPopup();
-                    }}
-                    className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
-                  >
-                    Pet / Equip
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={toggleThemeMode}
+                  className="flex w-full items-center gap-2 rounded-md border border-black/15 px-3 py-1.5 text-xs font-medium text-black/80"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+                    <path d="M21.75 15.5A9.75 9.75 0 1 1 8.5 2.25a.75.75 0 0 1 .88.98 8.25 8.25 0 0 0 11.39 11.39.75.75 0 0 1 .98.88Z" />
+                  </svg>
+                  {themeMode === "light" ? "Dark Mode" : "Light Mode"}
+                </button>
+                <LogoutButton variant="menu" />
               </div>
             ) : null}
           </div>
@@ -360,11 +386,37 @@ export function UserSummaryCard({
             </div>
             <span className="text-xs text-black/60">({user.points}/{nextLevelPoints})</span>
           </div>
-          <span
-            className={`mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getSegmentBadgeClass(user.segment)}`}
-          >
-            {user.segment}
-          </span>
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getSegmentBadgeClass(user.segment)}`}
+            >
+              {user.segment}
+            </span>
+            {hasPetItems ? (
+              <button
+                type="button"
+                onClick={() => void openPetPopup()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="6.5" cy="8.5" r="1.5" />
+                  <circle cx="11.5" cy="6.5" r="1.5" />
+                  <circle cx="16.5" cy="8.5" r="1.5" />
+                  <path d="M12 18c-3 0-5-1.8-5-4 0-1.7 1.3-3 3-3 .9 0 1.8.4 2.3 1 .5-.6 1.4-1 2.3-1 1.7 0 3 1.3 3 3 0 2.2-2 4-5 4Z" />
+                </svg>
+                Pet / Equip
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 

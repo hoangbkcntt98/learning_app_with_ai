@@ -11,6 +11,8 @@ export type StoreProductRecord = {
   description: string;
   imageUrl: string;
   priceGold: number;
+  stockLimit: number | null;
+  soldCount: number;
   durationDays: number;
   effectExtraAiDailyQuota: number;
   effectBonusPoints: number;
@@ -36,6 +38,7 @@ const defaultProducts = [
     description: "Allows the user to ask the AI 3 extra times if they exceed their quota.",
     imageUrl: "/images/products/pet_bonous_ai.png",
     priceGold: 3,
+    stockLimit: null,
     durationDays: 0,
     effectExtraAiDailyQuota: 3,
     effectBonusPoints: 0,
@@ -48,6 +51,7 @@ const defaultProducts = [
     description: "Increases +5 points and +1 gold for each correct answer.",
     imageUrl: "/images/products/pet_bonous_point.png",
     priceGold: 30,
+    stockLimit: null,
     durationDays: 1,
     effectExtraAiDailyQuota: 0,
     effectBonusPoints: 5,
@@ -60,6 +64,7 @@ const defaultProducts = [
     description: "Increases +10 points and +5 gold for each correct answer.",
     imageUrl: "/images/products/pet_bonous_point_1.png",
     priceGold: 300,
+    stockLimit: null,
     durationDays: 3,
     effectExtraAiDailyQuota: 0,
     effectBonusPoints: 10,
@@ -75,6 +80,8 @@ function mapProduct(product: {
   description: string;
   imageUrl: string;
   priceGold: number;
+  stockLimit: number | null;
+  soldCount: number;
   durationDays: number;
   effectExtraAiDailyQuota: number;
   effectBonusPoints: number;
@@ -90,6 +97,14 @@ function mapProduct(product: {
     description: product.description,
     imageUrl: product.imageUrl,
     priceGold: product.priceGold,
+    stockLimit:
+      typeof product.stockLimit === "number" && Number.isFinite(product.stockLimit)
+        ? Math.max(0, Math.trunc(product.stockLimit))
+        : null,
+    soldCount:
+      typeof product.soldCount === "number" && Number.isFinite(product.soldCount)
+        ? Math.max(0, Math.trunc(product.soldCount))
+        : 0,
     durationDays: product.durationDays,
     effectExtraAiDailyQuota: product.effectExtraAiDailyQuota,
     effectBonusPoints: product.effectBonusPoints,
@@ -105,19 +120,21 @@ function mapUserStoreItem(item: {
   purchasedAt: Date;
   expiresAt: Date;
   isEquipped: boolean;
-  product: {
-    id: number;
-    productType: number;
-    useType: number;
-    name: string;
-    description: string;
-    imageUrl: string;
-    priceGold: number;
-    durationDays: number;
-    effectExtraAiDailyQuota: number;
-    effectBonusPoints: number;
-    effectBonusGold: number;
-    isActive: boolean;
+    product: {
+      id: number;
+      productType: number;
+      useType: number;
+      name: string;
+      description: string;
+      imageUrl: string;
+      priceGold: number;
+      stockLimit: number | null;
+      soldCount: number;
+      durationDays: number;
+      effectExtraAiDailyQuota: number;
+      effectBonusPoints: number;
+      effectBonusGold: number;
+      isActive: boolean;
   };
 }): UserStoreItemRecord {
   // Normalize purchased item row for JSON-safe API responses.
@@ -144,6 +161,7 @@ export async function ensureStoreProducts(db: DbClient = prisma) {
         description: product.description,
         imageUrl: product.imageUrl,
         priceGold: product.priceGold,
+        stockLimit: product.stockLimit,
         durationDays: product.durationDays,
         effectExtraAiDailyQuota: product.effectExtraAiDailyQuota,
         effectBonusPoints: product.effectBonusPoints,
@@ -156,6 +174,7 @@ export async function ensureStoreProducts(db: DbClient = prisma) {
         description: product.description,
         imageUrl: product.imageUrl,
         priceGold: product.priceGold,
+        stockLimit: product.stockLimit,
         durationDays: product.durationDays,
         effectExtraAiDailyQuota: product.effectExtraAiDailyQuota,
         effectBonusPoints: product.effectBonusPoints,
@@ -262,6 +281,9 @@ export async function buyStoreProduct(userEmail: string, productId: number) {
     if (user.gold < product.priceGold) {
       throw new Error("Not enough gold.");
     }
+    if (typeof product.stockLimit === "number" && product.soldCount >= product.stockLimit) {
+      throw new Error("Out of stock.");
+    }
 
     const expiresAt =
       product.useType === 1
@@ -302,6 +324,33 @@ export async function buyStoreProduct(userEmail: string, productId: number) {
         },
       }),
     ]);
+    if (typeof product.stockLimit === "number") {
+      const increased = await tx.storeProduct.updateMany({
+        where: {
+          id: product.id,
+          soldCount: {
+            lt: product.stockLimit,
+          },
+        },
+        data: {
+          soldCount: {
+            increment: 1,
+          },
+        },
+      });
+      if (increased.count === 0) {
+        throw new Error("Out of stock.");
+      }
+    } else {
+      await tx.storeProduct.update({
+        where: { id: product.id },
+        data: {
+          soldCount: {
+            increment: 1,
+          },
+        },
+      });
+    }
 
     return {
       userEmail: updatedUser.email,

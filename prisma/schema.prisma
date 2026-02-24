@@ -270,6 +270,8 @@ model StoreProduct {
   description           String
   imageUrl              String          @map("image_url")
   priceGold             Int             @map("price_gold")
+  stockLimit            Int?            @map("stock_limit")
+  soldCount             Int             @default(0) @map("sold_count")
   durationDays          Int             @map("duration_days")
   effectExtraAiDailyQuota Int          @default(0) @map("effect_extra_ai_daily_quota")
   effectBonusPoints     Int             @default(0) @map("effect_bonus_points")
@@ -281,6 +283,7 @@ model StoreProduct {
 
   @@index([productType], map: "idx_store_products_type")
   @@index([isActive], map: "idx_store_products_is_active")
+  @@index([stockLimit], map: "idx_store_products_stock_limit")
   @@map("store_products")
 }
 
