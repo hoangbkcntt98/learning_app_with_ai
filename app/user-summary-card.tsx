@@ -64,9 +64,25 @@ function computeLevelProgress(points: number, level: number) {
   return Math.round(ratio * 100);
 }
 
-function getNextLevelPoints(level: number) {
-  // Return the absolute points target required for the next level.
-  return level <= 0 ? 10 : 10 ** (level + 1) / 2;
+function getLevelProgressStats(points: number, level: number) {
+  // Return earned points since current level and required points to next level.
+  if (level <= 0) {
+    const min = 0;
+    const max = 10;
+    const clampedPoints = Math.max(min, Math.min(points, max));
+    return {
+      earnedSinceLevelStart: clampedPoints - min,
+      pointsNeededToNextLevel: max - min,
+    };
+  }
+
+  const min = 10 ** level / 2;
+  const max = 10 ** (level + 1) / 2;
+  const clampedPoints = Math.max(min, Math.min(points, max));
+  return {
+    earnedSinceLevelStart: clampedPoints - min,
+    pointsNeededToNextLevel: max - min,
+  };
 }
 
 function getSegmentBadgeClass(segment: UserSummary["segment"]) {
@@ -201,7 +217,7 @@ export function UserSummaryCard({
     return window.localStorage.getItem(themeStorageKey) === "dark" ? "dark" : "light";
   });
   const levelProgressPercent = computeLevelProgress(user.points, user.level);
-  const nextLevelPoints = getNextLevelPoints(user.level);
+  const levelProgressStats = getLevelProgressStats(user.points, user.level);
   const [hasPetItems, setHasPetItems] = useState(false);
   const [showPetPopup, setShowPetPopup] = useState(false);
   const [petItems, setPetItems] = useState<UserStoreItem[]>([]);
@@ -399,7 +415,9 @@ export function UserSummaryCard({
                 {levelProgressPercent}%
               </span>
             </div>
-            <span className="text-xs text-black/60">({user.points}/{nextLevelPoints})</span>
+            <span className="text-xs text-black/60">
+              ({levelProgressStats.earnedSinceLevelStart}/{levelProgressStats.pointsNeededToNextLevel})
+            </span>
           </div>
           <div className="mt-2 flex items-center gap-2">
             <span
