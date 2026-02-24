@@ -8,6 +8,7 @@ import { ActionResultPopup } from "../action-result-popup";
 
 type AppSettings = {
   maxRegisteredUsers: number;
+  questionChunkSize: number;
   aiDailyQuotaPerUser?: number;
 };
 
@@ -41,6 +42,7 @@ type FeatureFormDraft = {
 export function AdminClient() {
   const [settings, setSettings] = useState<AppSettings>({
     maxRegisteredUsers: 1000,
+    questionChunkSize: 20,
   });
   const [featureRules, setFeatureRules] = useState<FeatureAccessRule[]>([]);
   const [selectedFeatureId, setSelectedFeatureId] = useState<number>(1);
@@ -124,6 +126,7 @@ export function AdminClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           maxRegisteredUsers: settings.maxRegisteredUsers,
+          questionChunkSize: settings.questionChunkSize,
         }),
       });
       if (!response.ok) {
@@ -375,6 +378,24 @@ export function AdminClient() {
                 setSettings((prev) => ({
                   ...prev,
                   maxRegisteredUsers: Number.parseInt(event.target.value || "1", 10),
+                }))
+              }
+              className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block md:max-w-xs">
+            <span className="mb-1 block text-xs font-medium text-black/70">
+              Questions per chunk (Learning)
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={settings.questionChunkSize}
+              onChange={(event) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  questionChunkSize: Number.parseInt(event.target.value || "1", 10),
                 }))
               }
               className="w-full rounded-lg border border-black/20 px-3 py-2 text-sm"

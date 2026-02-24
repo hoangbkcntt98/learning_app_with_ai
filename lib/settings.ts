@@ -4,6 +4,7 @@ import { getUserActiveStoreEffects } from "./store";
 
 export type AppSettings = {
   maxRegisteredUsers: number;
+  questionChunkSize: number;
   aiChatAllowFree: boolean;
   aiChatAllowPlus: boolean;
   aiChatAllowPro: boolean;
@@ -14,6 +15,8 @@ export type AppSettings = {
 const SETTINGS_ROW_ID = 1;
 const DEFAULT_MAX_REGISTERED_USERS = 1000;
 const DEFAULT_FORUM_MIN_LEVEL = 2;
+const DEFAULT_QUESTION_CHUNK_SIZE = 20;
+const MAX_QUESTION_CHUNK_SIZE = 100;
 
 function normalizeLimit(value: number, fallback: number): number {
   // Ensure limits stay as safe positive integers.
@@ -35,6 +38,7 @@ export async function readAppSettings(): Promise<AppSettings> {
         id: SETTINGS_ROW_ID,
         aiDailyQuotaPerUser: 20,
         maxRegisteredUsers: DEFAULT_MAX_REGISTERED_USERS,
+        questionChunkSize: DEFAULT_QUESTION_CHUNK_SIZE,
         aiChatAllowFree: false,
         aiChatAllowPlus: true,
         aiChatAllowPro: true,
@@ -48,6 +52,13 @@ export async function readAppSettings(): Promise<AppSettings> {
     maxRegisteredUsers: normalizeLimit(
       config.maxRegisteredUsers,
       DEFAULT_MAX_REGISTERED_USERS,
+    ),
+    questionChunkSize: Math.max(
+      1,
+      Math.min(
+        MAX_QUESTION_CHUNK_SIZE,
+        normalizeLimit(config.questionChunkSize, DEFAULT_QUESTION_CHUNK_SIZE),
+      ),
     ),
     aiChatAllowFree: config.aiChatAllowFree,
     aiChatAllowPlus: config.aiChatAllowPlus,
@@ -65,6 +76,16 @@ export async function updateAppSettings(input: Partial<AppSettings>): Promise<Ap
     typeof input.maxRegisteredUsers === "number"
       ? normalizeLimit(input.maxRegisteredUsers, current.maxRegisteredUsers)
       : current.maxRegisteredUsers;
+  const nextQuestionChunkSize =
+    typeof input.questionChunkSize === "number"
+      ? Math.max(
+          1,
+          Math.min(
+            MAX_QUESTION_CHUNK_SIZE,
+            normalizeLimit(input.questionChunkSize, current.questionChunkSize),
+          ),
+        )
+      : current.questionChunkSize;
   const nextAiChatAllowFree =
     typeof input.aiChatAllowFree === "boolean" ? input.aiChatAllowFree : current.aiChatAllowFree;
   const nextAiChatAllowPlus =
@@ -86,6 +107,7 @@ export async function updateAppSettings(input: Partial<AppSettings>): Promise<Ap
       id: SETTINGS_ROW_ID,
       aiDailyQuotaPerUser: 20,
       maxRegisteredUsers: nextMaxRegisteredUsers,
+      questionChunkSize: nextQuestionChunkSize,
       aiChatAllowFree: nextAiChatAllowFree,
       aiChatAllowPlus: nextAiChatAllowPlus,
       aiChatAllowPro: nextAiChatAllowPro,
@@ -94,6 +116,7 @@ export async function updateAppSettings(input: Partial<AppSettings>): Promise<Ap
     },
     update: {
       maxRegisteredUsers: nextMaxRegisteredUsers,
+      questionChunkSize: nextQuestionChunkSize,
       aiChatAllowFree: nextAiChatAllowFree,
       aiChatAllowPlus: nextAiChatAllowPlus,
       aiChatAllowPro: nextAiChatAllowPro,
@@ -104,6 +127,7 @@ export async function updateAppSettings(input: Partial<AppSettings>): Promise<Ap
 
   return {
     maxRegisteredUsers: updated.maxRegisteredUsers,
+    questionChunkSize: updated.questionChunkSize,
     aiChatAllowFree: updated.aiChatAllowFree,
     aiChatAllowPlus: updated.aiChatAllowPlus,
     aiChatAllowPro: updated.aiChatAllowPro,

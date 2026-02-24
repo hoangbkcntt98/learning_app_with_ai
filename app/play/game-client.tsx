@@ -55,8 +55,6 @@ type AdminChatMessage = {
   cached?: boolean;
 };
 
-const QUESTION_CHUNK_SIZE = 20;
-
 function NextIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -193,6 +191,7 @@ export function GameClient({
   const [adminChatLanguage, setAdminChatLanguage] = useState<SupportedLanguage>(DEFAULT_LANGUAGE);
   const [adminSelectedImage, setAdminSelectedImage] = useState<File | null>(null);
   const adminImageInputRef = useRef<HTMLInputElement | null>(null);
+  const loadMoreRequestIdRef = useRef(0);
   const adminSelectedImagePreviewUrl = useMemo(
     () => (adminSelectedImage ? URL.createObjectURL(adminSelectedImage) : null),
     [adminSelectedImage],
@@ -242,7 +241,6 @@ export function GameClient({
         }
         const generatedSeed = Math.floor(Math.random() * 2147483647);
         params.set("offset", "0");
-        params.set("limit", String(QUESTION_CHUNK_SIZE));
         params.set("seed", String(generatedSeed));
         const response = await fetch(`/api/game/questions?${params.toString()}`);
         if (!response.ok) {
@@ -306,14 +304,16 @@ export function GameClient({
 
   useEffect(() => {
     // Lazy-load next chunk before learner reaches the end of current chunk.
-    if (isLoadingQuestions || isLoadingMoreQuestions || !hasMoreQuestions || questionSeed === null) {
+    if (isLoadingQuestions || !hasMoreQuestions || questionSeed === null) {
       return;
     }
     if (currentIndex < Math.max(0, questions.length - 5)) {
       return;
     }
 
-    let cancelled = false;
+    const requestId = loadMoreRequestIdRef.current + 1;
+    loadMoreRequestIdRef.current = requestId;
+    const abortController = new AbortController();
     async function loadMoreQuestions() {
       setIsLoadingMoreQuestions(true);
       try {
@@ -325,10 +325,11 @@ export function GameClient({
           params.set("level", selectedLevel);
         }
         params.set("offset", String(nextQuestionOffset));
-        params.set("limit", String(QUESTION_CHUNK_SIZE));
         params.set("seed", String(questionSeed));
 
-        const response = await fetch(`/api/game/questions?${params.toString()}`);
+        const response = await fetch(`/api/game/questions?${params.toString()}`, {
+          signal: abortController.signal,
+        });
         if (!response.ok) {
           return;
         }
@@ -337,7 +338,7 @@ export function GameClient({
           hasMore?: boolean;
           nextOffset?: number;
         };
-        if (cancelled) {
+        if (loadMoreRequestIdRef.current !== requestId) {
           return;
         }
 
@@ -356,8 +357,12 @@ export function GameClient({
             ? body.nextOffset
             : nextQuestionOffset + loadedChunk.length,
         );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
       } finally {
-        if (!cancelled) {
+        if (loadMoreRequestIdRef.current === requestId) {
           setIsLoadingMoreQuestions(false);
         }
       }
@@ -365,12 +370,11 @@ export function GameClient({
 
     loadMoreQuestions();
     return () => {
-      cancelled = true;
+      abortController.abort();
     };
   }, [
     currentIndex,
     hasMoreQuestions,
-    isLoadingMoreQuestions,
     isLoadingQuestions,
     nextQuestionOffset,
     questionSeed,
@@ -419,6 +423,15 @@ export function GameClient({
       setPoints(body.points);
       setGold(body.gold);
       setUserLevel(body.level);
+      window.dispatchEvent(
+        new CustomEvent("user:stats-updated", {
+          detail: {
+            points: body.points,
+            gold: body.gold,
+            level: body.level,
+          },
+        }),
+      );
       setShowAnswerFeedbackPopup(true);
     } catch {
       setError("Failed to submit answer.");

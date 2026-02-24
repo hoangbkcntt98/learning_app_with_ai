@@ -190,6 +190,7 @@ model AppConfig {
   id                   Int      @id
   aiDailyQuotaPerUser  Int      @default(20) @map("ai_daily_quota_per_user")
   maxRegisteredUsers   Int      @default(1000) @map("max_registered_users")
+  questionChunkSize    Int      @default(20) @map("question_chunk_size")
   aiChatAllowFree      Boolean  @default(false) @map("ai_chat_allow_free")
   aiChatAllowPlus      Boolean  @default(true) @map("ai_chat_allow_plus")
   aiChatAllowPro       Boolean  @default(true) @map("ai_chat_allow_pro")

@@ -22,6 +22,7 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json()) as {
     maxRegisteredUsers?: number;
+    questionChunkSize?: number;
     aiChatAllowFree?: boolean;
     aiChatAllowPlus?: boolean;
     aiChatAllowPro?: boolean;
@@ -47,9 +48,21 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   }
+  if (
+    body.questionChunkSize !== undefined &&
+    (!Number.isFinite(body.questionChunkSize) ||
+      body.questionChunkSize < 1 ||
+      body.questionChunkSize > 100)
+  ) {
+    return NextResponse.json(
+      { error: "questionChunkSize must be between 1 and 100." },
+      { status: 400 },
+    );
+  }
 
   const settings = await updateAppSettings({
     maxRegisteredUsers: body.maxRegisteredUsers,
+    questionChunkSize: body.questionChunkSize,
     aiChatAllowFree: body.aiChatAllowFree,
     aiChatAllowPlus: body.aiChatAllowPlus,
     aiChatAllowPro: body.aiChatAllowPro,

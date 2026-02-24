@@ -108,6 +108,7 @@ export function UserTopRightStats({
   user: UserSummary;
   className?: string;
 }) {
+  const [displayedGold, setDisplayedGold] = useState(user.gold);
   const [aiQuotaRemaining, setAiQuotaRemaining] = useState<number | undefined>(user.aiQuotaRemaining);
   const [aiQuotaLimit, setAiQuotaLimit] = useState<number | undefined>(user.aiQuotaLimit);
   const displayedAiQuotaRemaining = aiQuotaRemaining ?? user.aiQuotaRemaining;
@@ -142,6 +143,20 @@ export function UserTopRightStats({
     };
   }, []);
 
+  useEffect(() => {
+    function onUserStatsUpdated(event: Event) {
+      const nextGold = (event as CustomEvent<{ gold?: number }>).detail?.gold;
+      if (typeof nextGold === "number") {
+        setDisplayedGold(nextGold);
+      }
+    }
+
+    window.addEventListener("user:stats-updated", onUserStatsUpdated);
+    return () => {
+      window.removeEventListener("user:stats-updated", onUserStatsUpdated);
+    };
+  }, []);
+
   return (
     <div
       className={className ?? "absolute right-8 top-6 z-10 flex items-center gap-3 text-sm text-black/80"}
@@ -154,7 +169,7 @@ export function UserTopRightStats({
           height={16}
           className="rounded-full object-cover"
         />
-        <strong>{user.gold}</strong>
+        <strong>{displayedGold}</strong>
       </div>
       {typeof displayedAiQuotaRemaining === "number" && typeof displayedAiQuotaLimit === "number" ? (
         <div className="inline-flex items-center gap-1.5">

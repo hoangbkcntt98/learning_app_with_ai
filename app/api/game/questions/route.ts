@@ -4,6 +4,7 @@ import { readQuestionFields } from "@/lib/question-fields";
 import { listQuestionIdsFromUserList } from "@/lib/question-lists";
 import { readQuestions, sanitizeQuestion } from "@/lib/questions";
 import { getCurrentUser } from "@/lib/session";
+import { readAppSettings } from "@/lib/settings";
 import { getUserAccessibleQuestionFieldIds } from "@/lib/users";
 
 function seededRng(seed: number) {
@@ -41,10 +42,10 @@ export async function GET(request: Request) {
   const fieldIdParam = searchParams.get("fieldId");
   const levelParam = (searchParams.get("level") ?? "").trim();
   const offsetParam = Number.parseInt(searchParams.get("offset") ?? "0", 10);
-  const limitParam = Number.parseInt(searchParams.get("limit") ?? "20", 10);
   const seedParam = Number.parseInt(searchParams.get("seed") ?? "", 10);
   const offset = Number.isFinite(offsetParam) && offsetParam > 0 ? offsetParam : 0;
-  const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(100, limitParam)) : 20;
+  const settings = await readAppSettings();
+  const limit = Math.max(1, Math.min(100, settings.questionChunkSize));
   const seed =
     Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 2147483647);
   const fieldId =
