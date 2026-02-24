@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { FeatureAccessWarning } from "@/app/feature-access-warning";
-import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { hasQuestionInUserList } from "@/lib/question-lists";
 import { getUserQuestionNote } from "@/lib/question-notes";
 import { findQuestionById } from "@/lib/questions";
@@ -19,10 +17,6 @@ export default async function ReviewQuestionDetailPage({
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");
-  }
-  const access = await checkUserFeatureAccess(user, "review");
-  if (!access.allowed) {
-    return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
 
   const routeParams = await params;

@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import { FeatureAccessWarning } from "@/app/feature-access-warning";
 import type { UserSummary } from "@/app/user-summary-card";
-import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { canUseAiModel } from "@/lib/settings";
 import { GameClient } from "./game-client";
@@ -10,10 +8,6 @@ export default async function PlayPage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");
-  }
-  const access = await checkUserFeatureAccess(user, "learning");
-  if (!access.allowed) {
-    return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
   const aiQuota = await canUseAiModel(user.email);
 

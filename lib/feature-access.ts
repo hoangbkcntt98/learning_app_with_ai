@@ -15,6 +15,25 @@ export type FeatureAccessRuleRecord = {
   allowPremium: boolean;
 };
 
+export function getFeatureKeyFromRoutePath(routePath: string) {
+  // Resolve feature key from first URL segment (path right after domain).
+  const normalizedPath = routePath.trim();
+  if (!normalizedPath.startsWith("/")) {
+    return null;
+  }
+  const firstSegment = normalizedPath.split("/").filter(Boolean)[0] ?? "";
+  if (!firstSegment) {
+    return null;
+  }
+  if (firstSegment === "play") {
+    return "learning";
+  }
+  if (firstSegment === "ai-chat") {
+    return "ai_chat";
+  }
+  return firstSegment.replace(/-/g, "_");
+}
+
 const defaultFeatureRules: FeatureAccessRuleRecord[] = [
   {
     featureId: 1,

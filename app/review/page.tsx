@@ -1,18 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FeatureAccessWarning } from "@/app/feature-access-warning";
-import { checkUserFeatureAccess } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function ReviewPage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");
-  }
-  const access = await checkUserFeatureAccess(user, "review");
-  if (!access.allowed) {
-    return <FeatureAccessWarning title="Feature Restricted" message={access.message} />;
   }
 
   return (

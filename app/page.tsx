@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { checkUserFeatureAccess } from "@/lib/feature-access";
+import { checkUserFeatureAccess, getFeatureKeyFromRoutePath } from "@/lib/feature-access";
 import { getCurrentUser } from "@/lib/session";
 import { canUseAiModel } from "@/lib/settings";
 import { HomeDashboard } from "./home-dashboard";
@@ -11,13 +11,29 @@ export default async function Home() {
   }
 
   // Pre-compute feature availability so homepage tiles can show lock state.
+  const [
+    learningFeatureKey,
+    forumFeatureKey,
+    aiChatFeatureKey,
+    reviewFeatureKey,
+    adminFeatureKey,
+    storeFeatureKey,
+  ] = [
+    getFeatureKeyFromRoutePath("/play"),
+    getFeatureKeyFromRoutePath("/forum"),
+    getFeatureKeyFromRoutePath("/ai-chat"),
+    getFeatureKeyFromRoutePath("/review"),
+    getFeatureKeyFromRoutePath("/admin"),
+    getFeatureKeyFromRoutePath("/store"),
+  ];
+  const fallbackAccess = { allowed: true, message: "", rule: null };
   const [learningAccess, forumAccess, aiChatAccess, reviewAccess, adminAccess, storeAccess, aiQuota] = await Promise.all([
-    checkUserFeatureAccess(user, "learning"),
-    checkUserFeatureAccess(user, "forum"),
-    checkUserFeatureAccess(user, "ai_chat"),
-    checkUserFeatureAccess(user, "review"),
-    checkUserFeatureAccess(user, "admin"),
-    checkUserFeatureAccess(user, "store"),
+    learningFeatureKey ? checkUserFeatureAccess(user, learningFeatureKey) : Promise.resolve(fallbackAccess),
+    forumFeatureKey ? checkUserFeatureAccess(user, forumFeatureKey) : Promise.resolve(fallbackAccess),
+    aiChatFeatureKey ? checkUserFeatureAccess(user, aiChatFeatureKey) : Promise.resolve(fallbackAccess),
+    reviewFeatureKey ? checkUserFeatureAccess(user, reviewFeatureKey) : Promise.resolve(fallbackAccess),
+    adminFeatureKey ? checkUserFeatureAccess(user, adminFeatureKey) : Promise.resolve(fallbackAccess),
+    storeFeatureKey ? checkUserFeatureAccess(user, storeFeatureKey) : Promise.resolve(fallbackAccess),
     canUseAiModel(user.email),
   ]);
 
